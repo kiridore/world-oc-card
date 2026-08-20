@@ -80,6 +80,35 @@ test('M5 图谱：G6 画布渲染 + 关系创建入口 + 类型过滤图例', as
   await expect(page.getByText('敌对 →').first()).toBeVisible()
 })
 
+test('M5 点阵背景跟随视口平移/缩放', async ({ page }) => {
+  await freshProject(page, '点阵验证')
+  await page.goto('/#/graph')
+  await page.waitForTimeout(1500)
+  const wrap = page.locator('.g6-container')
+  const vars = async () => (await wrap.first().getAttribute('style')) ?? ''
+  const before = await vars()
+  expect(before).toContain('--dot-size') // 初始（autoFit 后）已写入
+
+  // 画布空白处拖拽平移 → 点阵偏移变化
+  const box = await page.locator('.graph-wrap').boundingBox()
+  const cx = box!.x + box!.width * 0.3
+  const cy = box!.y + box!.height * 0.8
+  await page.mouse.move(cx, cy)
+  await page.mouse.down()
+  await page.mouse.move(cx + 120, cy, { steps: 8 })
+  await page.mouse.up()
+  await page.waitForTimeout(400)
+  const afterPan = await vars()
+  expect(afterPan).not.toBe(before)
+
+  // 滚轮缩放 → 点阵尺寸变化
+  await page.mouse.wheel(0, -240)
+  await page.waitForTimeout(400)
+  const afterZoom = await vars()
+  const sizeOf = (s: string) => Number((s.match(/--dot-size:\s*([\d.]+)px/) ?? [])[1])
+  expect(sizeOf(afterZoom)).not.toBe(sizeOf(afterPan))
+})
+
 test('M6-F4 分享快照：生成单文件 HTML（无外部请求引用）', async ({ page }) => {
   await freshProject(page, '快照验证')
   await page.goto('/#/export')

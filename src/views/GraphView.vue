@@ -301,12 +301,33 @@ async function render(): Promise<void> {
     graph.on('edge:click', ((e: { target: { id: string } }) => {
       openEditRelation(e.target.id)
     }) as never)
+    // 点阵背景跟随视口：aftertransform 时用两点探测换算平移/缩放，同步 CSS 变量
+    graph.on('aftertransform', (syncDotGrid as () => void))
     setGraphInstance(graph)
     await graph.render()
+    syncDotGrid()
   } else {
     graph.setData(data as never)
     await graph.render()
+    syncDotGrid()
   }
+}
+
+/** 用 getViewportByCanvas 两点探测视口变换（canvas→屏幕），把平移量/缩放比同步到点阵背景 */
+function syncDotGrid(): void {
+  if (!graph || !containerEl.value) return
+  try {
+    // G6 Point 为 [x, y] 元组
+    const p0 = graph.getViewportByCanvas([0, 0])
+    const p1 = graph.getViewportByCanvas([100, 0])
+    const scale = (p1[0] - p0[0]) / 100 || 1
+    let size = 26 * scale
+    while (size < 10) size *= 5 // 缩远时点阵抽稀，避免糊成一片
+    const el = containerEl.value
+    el.style.setProperty('--dot-size', `${Math.round(size)}px`)
+    el.style.setProperty('--dot-x', `${Math.round(p0[0])}px`)
+    el.style.setProperty('--dot-y', `${Math.round(p0[1])}px`)
+  } catch { /* 读取失败保持默认静态点阵 */ }
 }
 
 function openEditRelation(id: string): void {
@@ -399,12 +420,13 @@ onUnmounted(() => {
 .type-filter .dot { width: 10px; height: 10px; border-radius: 50%; }
 .count { font-size: 11px; color: var(--text-3); }
 .ops { display: flex; gap: 8px; }
-/* 底部点阵（移动暗示）：节点平移/缩放时相对静态点阵运动；颜色走 token 随主题切换 */
-.graph-wrap {
-  flex: 1; min-height: 0; position: relative; overflow: hidden;
-  background-color: var(--surface);
+.graph-wrap { flex: 1; min-height: 0; position: relative; background: var(--surface); overflow: hidden; }
+/* 底部点阵（移动暗示）：背景画在 G6 容器上，跟随视口平移/缩放移动（syncDotGrid 写 CSS 变量），token 取色随主题切换 */
+.g6-container {
+  width: 100%; height: 100%;
   background-image: radial-gradient(var(--border) 1.1px, transparent 1.1px);
-  background-size: 26px 26px;
+  background-size: var(--dot-size, 26px) var(--dot-size, 26px);
+  background-position: var(--dot-x, 0px) var(--dot-y, 0px);
 }
 .g6-container { width: 100%; height: 100%; }
 .overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
