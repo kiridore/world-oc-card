@@ -7,3 +7,4 @@ docs/acceptance/*.png
 *.local
 *.log
 .DS_Store
+.zcode/
