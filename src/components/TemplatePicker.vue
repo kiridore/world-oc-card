@@ -29,7 +29,7 @@
       <div
         v-if="mode === 'create'"
         class="tpl-item plain"
-        @click="$emit('update:show', false)"
+        @click="skip"
       >
         <div class="tpl-name">
           跳过，直接创建空白角色
@@ -54,7 +54,13 @@ import { useProjectStore } from '@/stores/project'
 import type { Template } from '@/types'
 
 const props = defineProps<{ show: boolean; mode: 'create' | 'insert' }>()
-const emit = defineEmits<{ (e: 'update:show', v: boolean): void; (e: 'pick', t: Template): void }>()
+const emit = defineEmits<{ (e: 'update:show', v: boolean): void; (e: 'pick', t: Template): void; (e: 'skip'): void }>()
+
+/** 跳过模板 → 创建空白角色（此前只关弹窗未创建，已修复） */
+function skip(): void {
+  emit('skip')
+  emit('update:show', false)
+}
 const store = useProjectStore()
 
 const scoped = computed(() => (store.current?.templates ?? []).filter((t) => t.scope === 'character'))

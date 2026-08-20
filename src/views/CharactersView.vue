@@ -82,19 +82,14 @@
           </h2>
           <div class="detail-ops">
             <template v-if="editing">
-              <n-button
-                size="small"
-                @click="cancelEdit"
-              >
-                取消
-              </n-button>
+              <span class="autosave-hint"><CheckCircle2 :size="13" /> 编辑自动保存</span>
               <n-button
                 size="small"
                 type="primary"
                 :disabled="!draft.name.trim()"
-                @click="saveEdit"
+                @click="finishEdit"
               >
-                保存
+                完成
               </n-button>
             </template>
             <template v-else>
@@ -168,6 +163,7 @@
     v-model:show="showPicker"
     :mode="pickerMode"
     @pick="onPickTemplate"
+    @skip="createCharacter(null)"
   />
   <TemplateManager v-model:show="showTplManager" />
   <n-modal
@@ -201,7 +197,7 @@ import { useRouter, useRoute } from 'vue-router'
 import {
   NButton, NInput, NSelect, NEmpty, NModal, useDialog, useMessage,
 } from 'naive-ui'
-import { Plus, Search, Pencil, Trash2, BookmarkPlus, CopyPlus, LayoutTemplate, ImageDown } from 'lucide-vue-next'
+import { Plus, Search, Pencil, Trash2, BookmarkPlus, CopyPlus, LayoutTemplate, ImageDown, CheckCircle2 } from 'lucide-vue-next'
 import EmptyProject from '@/components/EmptyProject.vue'
 import BlockView from '@/components/blocks/BlockView.vue'
 import BlockEditor from '@/components/blocks/BlockEditor.vue'
@@ -269,21 +265,12 @@ const filtered = computed(() => {
 })
 
 function select(id: string): void {
-  if (editing.value) confirmLeaveEdit(id)
-  else selectedId.value = id
-}
-
-function confirmLeaveEdit(nextId: string): void {
-  dialog.warning({
-    title: '正在编辑',
-    content: '放弃未保存的修改？',
-    positiveText: '放弃修改',
-    negativeText: '继续编辑',
-    onPositiveClick: () => {
-      editing.value = false
-      selectedId.value = nextId
-    },
-  })
+  if (editing.value) {
+    // 自动保存模式下切换角色：先落盘当前草稿再切换，无数据丢失
+    saveDraftNow()
+    editing.value = false
+  }
+  selectedId.value = id
 }
 
 function newCharacter(): void {
@@ -299,29 +286,63 @@ function createCharacter(blocks: FieldBlock[] | null): void {
   }
   store.upsertCharacter(c)
   selectedId.value = c.id
-  message.success('角色已创建，点击「编辑」补充设定')
+  // 新建即进入编辑（改动自动保存，无需二级编辑入口）
+  loadDraftFrom(c)
+  editing.value = true
+  message.success('角色已创建，直接编辑即可（自动保存）')
 }
 
 function startEdit(): void {
   if (!selected.value) return
-  draft.name = selected.value.name
-  draft.fieldBlocks = JSON.parse(JSON.stringify(selected.value.fieldBlocks))
+  loadDraftFrom(selected.value)
   editing.value = true
 }
 
-function cancelEdit(): void {
-  editing.value = false
+function loadDraftFrom(c: Character): void {
+  draft.name = c.name
+  draft.fieldBlocks = JSON.parse(JSON.stringify(c.fieldBlocks))
+  lastSaved = serializeDraft()
 }
 
-function saveEdit(): void {
-  if (!selected.value || !draft.name.trim()) return
-  store.upsertCharacter({ ...selected.value, name: draft.name.trim(), fieldBlocks: draft.fieldBlocks })
-  editing.value = false
-  message.success('已保存')
+function serializeDraft(): string {
+  return JSON.stringify({ name: draft.name.trim(), blocks: draft.fieldBlocks })
 }
 
-// M2-E2：编辑期大文本防丢——textarea 输入即同步草稿，保存时统一落库（落库走防抖脏写）
-watch(() => draft.fieldBlocks, () => { /* 草稿本地维护，保存时提交 */ }, { deep: true })
+// ---- 自动保存：输入停顿 800ms 后落库；提示节流避免刷屏 ----
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null
+let lastSaved = ''
+let lastNoticeAt = 0
+
+function saveDraftNow(): void {
+  if (!editing.value || !selected.value) return
+  if (!draft.name.trim()) return
+  const snap = serializeDraft()
+  if (snap === lastSaved) return
+  lastSaved = snap
+  store.upsertCharacter({
+    ...selected.value,
+    name: draft.name.trim(),
+    fieldBlocks: JSON.parse(JSON.stringify(draft.fieldBlocks)),
+  })
+  const now = Date.now()
+  if (now - lastNoticeAt > 4000) {
+    lastNoticeAt = now
+    message.success('已自动保存')
+  }
+}
+
+watch(() => [draft.name, draft.fieldBlocks], () => {
+  if (!editing.value) return
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  autosaveTimer = setTimeout(saveDraftNow, 800)
+}, { deep: true })
+
+function finishEdit(): void {
+  if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null }
+  saveDraftNow()
+  editing.value = false
+  message.success('已完成，修改已保存')
+}
 
 function confirmDelete(): void {
   if (!selected.value || !store.current) return
@@ -428,7 +449,8 @@ async function exportCardPng(): Promise<void> {
 .detail-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
 .name { margin: 0; font-size: 20px; }
 .name-input { font-size: 18px; font-weight: 600; background: transparent; border: none; border-bottom: 2px solid var(--accent); outline: none; color: var(--text-1); padding: 2px 0; flex: 1; }
-.detail-ops { display: flex; gap: 8px; flex-wrap: wrap; }
+.detail-ops { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.autosave-hint { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-3); }
 .detail-body { flex: 1; overflow: auto; }
 .keep-values { display: flex; gap: 6px; margin-top: 12px; font-size: 13px; color: var(--text-2); }
 </style>
