@@ -35,6 +35,8 @@ src/utils（纯函数：calendar/fork/integrity/template/markdown/mdExport/snaps
 
 ## 硬性规则（违反会挂检查或测试）
 
+- **版本与更新日志（每次修改后执行）**：按语义化版本递增 `package.json` 的 `version`（功能+次版本 / 修复+修订号 / 数据格式破坏性变更+主版本号），并在 `CHANGELOG.md` 顶部追加该次修改的概要条目（版本号+日期+变更/新增/修复分组）；应用内版本号显示读取 package.json，无需另行维护。
+
 - **颜色纪律**：禁止在白名单（tokens.css / utils/colors.ts / utils/snapshot.ts）之外写任何 hex/rgb 字面量；chrome 色饱和度 ≤40%；图表颜色运行时读 CSS token（utils/tokens.ts），数据语义色用 DATA_PALETTE + `resolveDataColor(hex, theme)`（双主题对比度 ≥3:1）。
 - **图片绝不 base64 内联进 JSON**（G6）；图片走 assets Blob 表，实体里只存 assetId。
 - 百科条目名**项目内全局唯一**（`[[条目名]]` 链接解析依赖此约束，附录 A1）。

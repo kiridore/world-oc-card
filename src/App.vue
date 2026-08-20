@@ -31,6 +31,7 @@
               </RouterLink>
             </nav>
             <div class="side-foot">
+              <span class="ver">v{{ version }}</span>
               <button
                 class="foot-btn"
                 title="完整性巡检（失效引用 / 孤儿资产）"
@@ -85,6 +86,9 @@ import ThemeToggle from '@/components/ThemeToggle.vue'
 import MarbleBackground from '@/components/MarbleBackground.vue'
 import IntegrityDrawer from '@/components/IntegrityDrawer.vue'
 import { useShortcuts, SHORTCUT_HELP } from '@/composables/useShortcuts'
+import pkg from '../package.json'
+
+const version = pkg.version
 
 const theme = useThemeStore()
 const isDark = computed(() => theme.isDark)
@@ -133,6 +137,7 @@ nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .nav-item:hover { background: var(--surface-2); color: var(--text-1); }
 .nav-item.active { background: var(--accent-weak); color: var(--accent-text); }
 .side-foot { padding: 8px 10px; display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
+.ver { font-size: 11px; color: var(--text-3); margin-right: auto; }
 .foot-btn {
   display: inline-flex; align-items: center; gap: 5px;
   border: 1px solid var(--border); background: var(--surface-2); color: var(--text-3);
