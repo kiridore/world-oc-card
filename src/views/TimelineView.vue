@@ -394,6 +394,7 @@ import EventDrawer from '@/components/timeline/EventDrawer.vue'
 import { useProjectStore } from '@/stores/project'
 import { useThemeStore } from '@/stores/theme'
 import { eventAbs } from '@/utils/calendar'
+import { clampSpan } from '@/utils/zoom'
 import { allWorldlineViews, type WorldlineView } from '@/utils/fork'
 import { resolveDataColor } from '@/utils/colors'
 import { removeWorldlineCascade } from '@/utils/integrity'
@@ -611,8 +612,10 @@ function onWheel(ev: WheelEvent): void {
   const factor = ev.deltaY > 0 ? 1.15 : 1 / 1.15
   const start = anchor - (anchor - view.start) * factor
   const end = anchor + (view.end - anchor) * factor
-  view.start = start
-  view.end = end
+  // 缩放尺度限制：最深放大 MIN_SPAN / 最远缩小 MAX_SPAN（utils/zoom.ts）
+  const clamped = clampSpan(start, end)
+  view.start = clamped.start
+  view.end = clamped.end
 }
 
 let dragging = false

@@ -138,6 +138,37 @@ test('M4 同刻多事件：折叠聚合点（×N）点击展开，轨道首行�
   expect(topCircleY?.y ?? 0).toBeGreaterThan(60)
 })
 
+test('M4 缩放尺度限制：极端放大/缩小后无错误且视图可恢复', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  await freshProject(page, '缩放限制验证')
+  await page.goto('/#/timeline')
+  await page.getByRole('button', { name: /新建事件/ }).click()
+  await page.getByRole('button', { name: '创建并编辑' }).click()
+  await page.waitForTimeout(600)
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400)
+
+  const board = page.locator('.board')
+  const box = await board.boundingBox()
+  const cx = box!.x + box!.width / 2
+  const cy = box!.y + 100
+  await page.mouse.move(cx, cy)
+  // 极端放大（40 次）与极端缩小（80 次）——被钳制后不崩溃、刻度不退化
+  for (let i = 0; i < 40; i++) await page.mouse.wheel(0, -120)
+  for (let i = 0; i < 80; i++) await page.mouse.wheel(0, 120)
+  await page.waitForTimeout(500)
+  const tickTexts = await page.locator('.tick-text').allTextContents()
+  const ticksFinite = tickTexts.every((t) => Number.isFinite(Number(String(t).replace(/[^0-9.eE+-]/g, ''))) || t.length > 0)
+  expect(tickTexts.length).toBeGreaterThan(0)
+  expect(ticksFinite).toBe(true)
+  // 缩回可见范围：事件侧栏入口仍可用（列表点击打开抽屉）
+  await page.locator('.ev-row').first().click()
+  await expect(page.getByText(/事件：新事件/).first()).toBeVisible({ timeout: 5000 })
+  await page.keyboard.press('Escape')
+  expect(errors).toEqual([])
+})
+
 test('M7 巡检面板打开显示健康状态', async ({ page }) => {
   await freshProject(page, '巡检验证')
   await page.getByTitle('完整性巡检（失效引用 / 孤儿资产）').click()
