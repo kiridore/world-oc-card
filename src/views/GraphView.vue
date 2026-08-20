@@ -186,6 +186,8 @@ const enabledTypes = ref<Set<string>>(new Set())
 
 let graph: Graph | null = null
 let resizeObs: ResizeObserver | null = null
+// 上次渲染的数据+主题指纹：相同则跳过重建（避免后台数据重读/重复触发导致视口被意外复位）
+let lastRenderKey = ''
 
 const characters = computed(() => store.current?.characters ?? [])
 const relations = computed(() => store.current?.relations ?? [])
@@ -229,7 +231,7 @@ const arrowOptions = [
   { label: '双箭头 ↔', value: 'double' },
 ]
 
-function graphData(): { nodes: { id: string; data: { name: string } }[]; edges: { id: string; source: string; target: string; data: { color: string; arrow: 'none' | 'single' | 'double'; name: string } }[] } {
+function graphData(): { nodes: { id: string; data: { name: string } }[]; edges: { id: string; source: string; target: string; type: 'quadratic' | 'line'; data: { color: string; arrow: 'none' | 'single' | 'double'; name: string } }[] } {
   const c = chartColors()
   void c
   return {
@@ -240,77 +242,100 @@ function graphData(): { nodes: { id: string; data: { name: string } }[]; edges: 
         const t = relationTypes.value.find((x) => x.id === r.typeId)
         return {
           id: r.id, source: r.from, target: r.to,
+          // 关系连线为二次贝塞尔曲线（curveOffset 默认 30）；自环保持默认渲染避免端点重合退化
+          type: r.from === r.to ? 'line' : 'quadratic',
           data: { color: lineColor(t?.color ?? palettePick(9)), arrow: t?.arrow ?? 'none', name: t?.name ?? '' },
         }
       }),
   }
 }
 
+let rendering = false
+let renderQueued = false
+
+/** 深层变更可能连续触发多次，串行化并在结束后补一次尾随渲染，避免销毁/重建竞态 */
 async function render(): Promise<void> {
+  if (rendering) {
+    renderQueued = true
+    return
+  }
+  rendering = true
+  try {
+    await doRender()
+  } finally {
+    rendering = false
+    if (renderQueued) {
+      renderQueued = false
+      void render()
+    }
+  }
+}
+
+async function doRender(): Promise<void> {
   if (!containerEl.value) return
   const c = chartColors()
   const el = containerEl.value
   const data = graphData()
-  if (!graph) {
-    graph = new Graph({
-      container: el,
-      // 自适应视图但钳制缩放：少节点时不过度放大（≤1.25），大图可充分缩小（≥0.15）
-      autoFit: 'view',
-      padding: 120,
-      zoomRange: [0.15, 1.25],
-      data,
-      layout: { type: 'force', linkDistance: 140, nodeStrength: -60, collide: 22 },
-      node: {
-        style: ((d: unknown) => {
-          const name = ((d as { data?: { name?: string } }).data ?? {}).name ?? ''
-          return {
-            size: 38,
-            fill: c.surface2,
-            stroke: c.border,
-            lineWidth: 1.5,
-            labelText: name,
-            labelFill: c.text1,
-            labelFontSize: 12,
-            labelPlacement: 'bottom',
-          }
-        }) as never,
-      },
-      edge: {
-        style: ((d: unknown) => {
-          const data = (d as { data?: { color?: string; arrow?: 'none' | 'single' | 'double'; name?: string } }).data ?? {}
-          const arrow = data.arrow ?? 'none'
-          return {
-            stroke: data.color ?? c.border,
-            lineWidth: 1.6,
-            endArrowSize: arrow === 'none' ? 0 : 6,     // 单/双箭头：终点箭头
-            startArrowSize: arrow === 'double' ? 6 : 0, // 双箭头：起点箭头
-            labelText: data.name ?? '',
-            labelFill: c.text3,
-            labelFontSize: 10,
-            labelBackground: true,
-            labelBackgroundFill: c.surface,
-          }
-        }) as never,
-      },
-      behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element'],
-      animation: false,
-    })
-    graph.on('node:click', ((e: { target: { id: string } }) => {
-      router.push({ path: '/characters', query: { id: e.target.id } })
-    }) as never)
-    graph.on('edge:click', ((e: { target: { id: string } }) => {
-      openEditRelation(e.target.id)
-    }) as never)
-    // 点阵背景跟随视口：aftertransform 时用两点探测换算平移/缩放，同步 CSS 变量
-    graph.on('aftertransform', (syncDotGrid as () => void))
-    setGraphInstance(graph)
-    await graph.render()
-    syncDotGrid()
-  } else {
-    graph.setData(data as never)
-    await graph.render()
-    syncDotGrid()
-  }
+  const key = JSON.stringify(data) + c.text1
+  if (graph && key === lastRenderKey) return
+  lastRenderKey = key
+  // G6 v5.1 增量更新路径（setData+render）创建的边元素先于布局落位，路径退化不可见；
+  // 统一销毁重建走挂载路径（preLayoutDraw 先布局后建元素），代价仅为视图复位（与 autoFit 行为一致）
+  if (graph) graph.destroy()
+  graph = new Graph({
+    container: el,
+    // 自适应视图但钳制缩放：少节点时不过度放大（≤1.25），大图可充分缩小（≥0.15）
+    autoFit: 'view',
+    padding: 120,
+    zoomRange: [0.15, 1.25],
+    data,
+    layout: { type: 'force', linkDistance: 140, nodeStrength: -60, collide: 22 },
+    node: {
+      style: ((d: unknown) => {
+        const name = ((d as { data?: { name?: string } }).data ?? {}).name ?? ''
+        return {
+          size: 38,
+          fill: c.surface2,
+          stroke: c.border,
+          lineWidth: 1.5,
+          labelText: name,
+          labelFill: c.text1,
+          labelFontSize: 12,
+          labelPlacement: 'bottom',
+        }
+      }) as never,
+    },
+    edge: {
+      style: ((d: unknown) => {
+        const data = (d as { data?: { color?: string; arrow?: 'none' | 'single' | 'double'; name?: string } }).data ?? {}
+        const arrow = data.arrow ?? 'none'
+        return {
+          stroke: data.color ?? c.border,
+          lineWidth: 1.6,
+          endArrowSize: arrow === 'none' ? 0 : 6,     // 单/双箭头：终点箭头
+          startArrowSize: arrow === 'double' ? 6 : 0, // 双箭头：起点箭头
+          labelText: data.name ?? '',
+          labelFill: c.text3,
+          labelFontSize: 10,
+          labelBackground: true,
+          labelBackgroundFill: c.surface,
+        }
+      }) as never,
+    },
+    behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element'],
+    animation: false,
+  })
+  graph.on('node:click', ((e: { target: { id: string } }) => {
+    router.push({ path: '/characters', query: { id: e.target.id } })
+  }) as never)
+  graph.on('edge:click', ((e: { target: { id: string } }) => {
+    openEditRelation(e.target.id)
+  }) as never)
+  // 点阵背景跟随视口：aftertransform 时用两点探测换算平移/缩放，同步 CSS 变量
+  graph.on('aftertransform', (syncDotGrid as () => void))
+  setGraphInstance(graph)
+  await graph.render()
+  syncDotGrid()
 }
 
 /** 用 getViewportByCanvas 两点探测视口变换（canvas→屏幕），把平移量/缩放比同步到点阵背景 */
@@ -393,7 +418,8 @@ async function exportPng(): Promise<void> {
   }
 }
 
-watch([relations, characters, enabledTypes, () => theme.theme], () => { void render() })
+// deep：关系/角色是原地 push/assign 变更（引用不变），浅 watch 不会触发，导致图谱页内新建关系不重绘
+watch([relations, characters, enabledTypes, () => theme.theme], () => { void render() }, { deep: true })
 
 onMounted(async () => {
   await nextTick()
@@ -409,6 +435,7 @@ onUnmounted(() => {
   setGraphInstance(null)
   graph?.destroy()
   graph = null
+  lastRenderKey = ''
 })
 </script>
 

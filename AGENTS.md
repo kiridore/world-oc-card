@@ -51,3 +51,6 @@ src/utils（纯函数：calendar/fork/integrity/template/markdown/mdExport/snaps
 4. **Naive UI 组件必须显式 import**（本项目未开自动导入；漏 import 会渲染成未知元素且不报类型错）。
 5. 版本栈较新：zod 4（z.strictObject、顶层 z.uuid）/ pinia 4 / vue-router 5（RouteMeta 需模块增强）/ TS 6 / Vite 8；写代码别套旧 API。
 6. 删除实体要走 integrity.ts 的级联函数，并对被波及实体逐一 `store.mark` 脏标记（否则 db 残留死行）。
+7. **G6 v5.1 增量更新路径（`setData`+`render`）新增边不绘制**（元素先于布局落位创建，路径退化；before/after-create 事件都触发但画布无图形）。GraphView 的 doRender 统一销毁重建走挂载路径（preLayoutDraw），并用 `lastRenderKey`（数据+主题指纹）跳过无变化重建，避免后台数据重读复位用户视口。
+8. **图谱数据 watch 必须 `{ deep: true }`**：relations/characters 是原地 push/assign 变更（引用不变），浅 watch 不触发——曾导致图谱页内新建关系不重绘。
+9. **Playwright 合成拖拽（mouse.down/move）在 firefox/msedge 分支下对 G6 画布无效**（chromium 分支正常；滚轮三引擎都正常）。E2E 涉及图谱视口跟随的断言用滚轮缩放驱动，不用拖拽。
