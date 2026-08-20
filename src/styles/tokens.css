@@ -1,0 +1,58 @@
+/* ===== Design Tokens（DESIGN.md §5.2）=====
+   唯一颜色来源；chrome 色饱和度 S≤40%（scripts/check-tokens.mjs 校验）。
+   高饱和颜色只允许出现在数据语义色（src/utils/colors.ts 的调色板）。 */
+
+:root[data-theme='dark'] {
+  --bg: #15171a;
+  --surface: #1e2024;
+  --surface-2: #26282d;
+  --text-1: #d6d9de;
+  --text-2: #a3a8b0;
+  --text-3: #767c86;
+  --border: #34373d;
+  --border-weak: #2b2e33;
+  --accent: #7d9cb5;
+  --accent-weak: #2c3944;
+  --accent-text: #a8c2d8;
+
+  --texture-opacity: 0.05;
+  --texture-sheen: 0.04;
+  --texture-url: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1400' height='900'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.011 0.028' numOctaves='4' seed='11'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='1400' height='900' filter='url(%23m)'/%3E%3C/svg%3E");
+  --texture-sheen-gradient: radial-gradient(120% 90% at 20% 0%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 45%);
+  --shadow-1: 0 2px 10px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 6px 24px rgba(0, 0, 0, 0.45);
+}
+
+:root[data-theme='light'] {
+  --bg: #e9eaec;
+  --surface: #f4f5f6;
+  --surface-2: #ebecee;
+  --text-1: #2b2e32;
+  --text-2: #55595f;
+  --text-3: #7f848b;
+  --border: #d4d6da;
+  --border-weak: #dfe1e4;
+  --accent: #4f7189;
+  --accent-weak: #dde4e9;
+  --accent-text: #3a566b;
+
+  --texture-opacity: 0.06;
+  --texture-sheen: 0.05;
+  --texture-url: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1400' height='900'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.013 0.034' numOctaves='4' seed='7'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='1400' height='900' filter='url(%23m)'/%3E%3C/svg%3E");
+  --texture-sheen-gradient: radial-gradient(120% 90% at 20% 0%, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 45%);
+  --shadow-1: 0 2px 10px rgba(43, 46, 50, 0.08);
+  --shadow-2: 0 6px 24px rgba(43, 46, 50, 0.12);
+}
+
+:root {
+  --radius-s: 8px;
+  --radius-m: 10px;
+  --radius-l: 12px;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 48px;
+  --font-ui: system-ui, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-serif: 'LXGW WenKai', 'Noto Serif SC', serif;
+}

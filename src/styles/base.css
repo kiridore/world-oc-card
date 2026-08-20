@@ -1,0 +1,62 @@
+@import './tokens.css';
+
+* { box-sizing: border-box; }
+
+html, body, #app { height: 100%; margin: 0; }
+
+body {
+  font-family: var(--font-ui);
+  background: var(--bg);
+  color: var(--text-1);
+  transition: background-color 0.2s ease-out, color 0.2s ease-out;
+}
+
+/* 正文（Markdown 渲染区）统一衬线排版（DESIGN.md §5.5） */
+.prose {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  line-height: 1.75;
+}
+.prose p { margin: 0 0 var(--space-2); }
+.prose h1, .prose h2, .prose h3 { font-family: var(--font-ui); }
+.prose a { color: var(--accent-text); }
+.prose blockquote {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-left: 3px solid var(--accent);
+  color: var(--text-2);
+  background: var(--surface-2);
+  border-radius: 0 var(--radius-s) var(--radius-s) 0;
+}
+.prose table { border-collapse: collapse; margin-bottom: var(--space-2); }
+.prose th, .prose td {
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  font-size: 14px;
+}
+.prose code {
+  font-family: Consolas, monospace;
+  background: var(--surface-2);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+.prose img { max-width: 100%; }
+
+/* 通用面板：卡片表面允许纹理，内容区可读性优先 */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border-weak);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-1);
+}
+
+button, input, textarea, select { font-family: var(--font-ui); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
