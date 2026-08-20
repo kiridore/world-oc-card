@@ -96,7 +96,7 @@ onMounted(() => { void reopenLastProject() })
 const router = useRouter()
 const navRoutes = router.getRoutes()
   .filter((r) => r.meta?.title && r.path !== '/')
-  .sort((a, b) => (a.path > b.path ? 1 : -1))
+  .sort((a, b) => (a.meta?.order ?? 99) - (b.meta?.order ?? 99))
 const home = router.getRoutes().find((r) => r.path === '/')
 if (home) navRoutes.unshift(home)
 
