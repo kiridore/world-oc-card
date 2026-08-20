@@ -267,13 +267,22 @@
                       text-anchor="middle"
                     >{{ it.e.time.display }}</text>
                   </g>
-                  <text
-                    :x="xOf(c.items[0].e)"
-                    :y="laneY(lane.index) + 34"
+                  <!-- 收起：包一层 g 并带透明命中圆（text 本身命中区太小），且必须被 onPointerDown 豁免，否则按下被当画布拖拽 + setPointerCapture 吞掉 click -->
+                  <g
+                    :transform="`translate(${xOf(c.items[0].e)}, ${laneY(lane.index) + 34})`"
                     class="cluster-collapse"
-                    text-anchor="middle"
                     @click.stop="toggleCluster(c.key)"
-                  >收起 ×{{ c.items.length }}</text>
+                  >
+                    <circle
+                      r="12"
+                      fill="transparent"
+                      class="hit"
+                    />
+                    <text
+                      text-anchor="middle"
+                      dominant-baseline="middle"
+                    >收起 ×{{ c.items.length }}</text>
+                  </g>
                 </template>
               </template>
             </g>
@@ -653,7 +662,7 @@ function startMomentum(vPxMs: number): void {
 }
 
 function onPointerDown(ev: PointerEvent): void {
-  if ((ev.target as HTMLElement).closest('.event')) return
+  if ((ev.target as Element).closest('.event, .cluster-collapse')) return
   stopMomentum()
   dragging = true
   dragMoved = false
@@ -868,8 +877,10 @@ onUnmounted(() => { resizeObs?.disconnect(); stopMomentum() })
 .event.cluster circle { cursor: pointer; stroke: var(--surface); stroke-width: 2; }
 .event.cluster { cursor: pointer; }
 .cluster-count { fill: var(--surface); font-size: 10px; font-weight: 700; pointer-events: none; }
-.cluster-collapse { fill: var(--text-3); font-size: 10px; cursor: pointer; }
-.cluster-collapse:hover { fill: var(--accent-text); }
+.cluster-collapse { cursor: pointer; }
+.cluster-collapse circle.hit { cursor: pointer; }
+.cluster-collapse text { fill: var(--text-3); font-size: 10px; }
+.cluster-collapse:hover text { fill: var(--accent-text); }
 .fork-curve { stroke-width: 1.5; stroke-dasharray: 4 3; opacity: 0.8; }
 .empty-hint { fill: var(--text-3); font-size: 13px; }
 .untimed { width: 264px; flex-shrink: 0; padding: var(--space-2); display: flex; flex-direction: column; gap: 8px; overflow: auto; }

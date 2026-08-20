@@ -199,6 +199,12 @@ test('M4 同刻多事件：折叠聚合点（×N）点击展开，轨道首行�
   await cluster.click()
   await expect(page.locator('svg g.event:not(.cluster) circle:not(.hit)')).toHaveCount(2)
   await expect(page.getByText('收起 ×2')).toBeVisible()
+  // 收起按钮可用：点击后回到聚合点，再点又展开（按下不被画布拖拽捕获吞掉 click）
+  await page.locator('g.cluster-collapse').click()
+  await expect(page.locator('g.event.cluster')).toHaveCount(1)
+  await expect(page.locator('svg g.event:not(.cluster) circle:not(.hit)')).toHaveCount(0)
+  await cluster.click()
+  await expect(page.locator('svg g.event:not(.cluster) circle:not(.hit)')).toHaveCount(2)
   // 展开后点第一个事件圆点 → 抽屉打开
   await page.locator('svg g.event:not(.cluster) circle:not(.hit)').first().click()
   await expect(page.getByText(/事件：新事件/).first()).toBeVisible({ timeout: 5000 })
