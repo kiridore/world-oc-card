@@ -22,7 +22,8 @@ function v0toV1(data: ProjectData, warnings: string[]): ProjectData {
     if (!id) {
       id = uuid()
       byKey.set(key, id)
-      relationTypes.push({ id, name: r.type, color: palettePick(relationTypes.length), directed: r.directed })
+      // v0 内联 directed 经 v1 兼容形态（directed 布尔）再由 v1→v2 统一转 arrow
+      relationTypes.push({ id, name: r.type, color: palettePick(relationTypes.length), arrow: r.directed ? 'single' : 'none' })
     }
     return { id: r.id, from: r.from, to: r.to, typeId: id, description: r.description ?? '' }
   })
@@ -30,7 +31,22 @@ function v0toV1(data: ProjectData, warnings: string[]): ProjectData {
   return { ...data, relations, settings: { ...data.settings, relationTypes } }
 }
 
-const STEPS: Record<number, (d: ProjectData, w: string[]) => ProjectData> = { 0: v0toV1 }
+/** v1 → v2：RelationType.directed 布尔 → arrow 三态（true→single，false→none） */
+function v1toV2(data: ProjectData, warnings: string[]): ProjectData {
+  const types = data.settings.relationTypes as unknown as Array<RelationType & { directed?: boolean }>
+  if (!types.some((t) => typeof t.directed === 'boolean' || t.arrow === undefined)) return data
+  const relationTypes: RelationType[] = types.map((t) => {
+    if (t.arrow) return { id: t.id, name: t.name, color: t.color, arrow: t.arrow }
+    return { id: t.id, name: t.name, color: t.color, arrow: t.directed ? 'single' : 'none' }
+  })
+  warnings.push('数据已从 v1 迁移到 v2（关系方向 directed 布尔 → arrow 三态）')
+  return { ...data, settings: { ...data.settings, relationTypes } }
+}
+
+const STEPS: Record<number, (d: ProjectData, w: string[]) => ProjectData> = {
+  0: v0toV1,
+  1: v1toV2,
+}
 
 export function migrateProject(data: ProjectData): { data: ProjectData; warnings: string[] } {
   const warnings: string[] = []

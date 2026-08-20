@@ -32,7 +32,8 @@ export interface CodexEntry {
   color: string
 }
 
-export interface RelationType { id: UUID; name: string; color: string; directed: boolean }
+export type RelationArrow = 'none' | 'single' | 'double'
+export interface RelationType { id: UUID; name: string; color: string; arrow: RelationArrow }
 
 export interface Relation { id: UUID; from: UUID; to: UUID; typeId: UUID; description: string }
 
@@ -118,4 +119,4 @@ export interface ProjectData {
 
 export interface AssetMeta { id: UUID; projectId: UUID; ext: string; name: string; mime: string; size: number }
 
-export const CURRENT_SCHEMA_VERSION = 1
+export const CURRENT_SCHEMA_VERSION = 2

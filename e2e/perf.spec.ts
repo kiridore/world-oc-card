@@ -25,7 +25,7 @@ test('大规模数据：项目打开 <1s、时间轴渲染 <2s、交互可用', 
     await put('settings', {
       projectId: pid,
       calendars: [{ id: 'cal1', name: '通用纪年', offset: 0, unitYears: 1 }],
-      relationTypes: [{ id: 'rt1', name: '亲属', color: palette[0], directed: false }],
+      relationTypes: [{ id: 'rt1', name: '亲属', color: palette[0], arrow: 'none' }],
       codexTypes: [{ id: 'ct1', key: 'location', name: '地点' }],
       worldlines: Array.from({ length: 5 }, (_, i) => ({
         id: `w${i}`, name: i === 0 ? '主世界线' : `IF 线 ${i}`,

@@ -68,10 +68,16 @@ test('M5 图谱：G6 画布渲染 + 关系创建入口 + 类型过滤图例', as
   await expect(page.locator('.rel-form').first()).toBeVisible()
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: /关系类型/ }).click()
-  await expect(page.getByText('有向', { exact: false }).first()).toBeVisible()
+  await expect(page.getByText('单箭头', { exact: false }).first()).toBeVisible()
+  // 三态箭头：把"亲属"切到双箭头 → 图例显示 ↔
+  const selects = page.locator('.type-mgr .n-base-selection')
+  await selects.first().click()
+  await page.getByText('双箭头 ↔').first().click()
+  await page.waitForTimeout(400)
   await page.keyboard.press('Escape')
-  // 类型过滤图例存在
-  await expect(page.getByText('亲属', { exact: false }).first()).toBeVisible()
+  await page.waitForTimeout(400)
+  await expect(page.getByText('亲属 ↔').first()).toBeVisible()
+  await expect(page.getByText('敌对 →').first()).toBeVisible()
 })
 
 test('M6-F4 分享快照：生成单文件 HTML（无外部请求引用）', async ({ page }) => {

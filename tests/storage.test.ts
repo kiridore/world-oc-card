@@ -8,10 +8,10 @@ import { uuid, nowIso } from '../src/utils/id'
 
 function makeProject(name = '测试项目'): ProjectData {
   return {
-    meta: { id: uuid(), name, schemaVersion: 1, createdAt: nowIso(), updatedAt: nowIso() },
+    meta: { id: uuid(), name, schemaVersion: 2, createdAt: nowIso(), updatedAt: nowIso() },
     settings: {
       calendars: [{ id: 'cal1', name: '通用纪年', offset: 0, unitYears: 1 }],
-      relationTypes: [{ id: 'rt1', name: '亲属', color: '#7d9cb5', directed: false }],
+      relationTypes: [{ id: 'rt1', name: '亲属', color: '#7d9cb5', arrow: 'none' as const }],
       codexTypes: [{ id: 'ct1', key: 'location', name: '地点' }],
       worldlines: [{ id: 'w1', name: '主世界线', parentWorldlineId: null, forkPointEventId: null, color: '#7d9cb5', status: 'active', order: 0 }],
     },
@@ -178,10 +178,10 @@ describe('M1-E1 残缺导入容错', () => {
 })
 
 describe('M1-F6 版本迁移', () => {
-  it('v0 zip（关系内联 type/directed）导入后升级 v1 且字段正确', async () => {
+  it('v0 zip（关系内联 type/directed）导入后升级到当前版本且字段正确（directed=false → arrow=none）', async () => {
     const p = makeProject()
     const bytes = buildZip(p, [])
-    const { unzipSync, zipSync, strToU8, strFromU8 } = await import('fflate')
+    const { unzipSync, zipSync, strToU8 } = await import('fflate')
     const files: Record<string, Uint8Array> = { ...unzipSync(bytes) }
     // 改写为 v0 形态
     files['project.json'] = strToU8(JSON.stringify({ ...p.meta, schemaVersion: 0 }))
@@ -189,13 +189,57 @@ describe('M1-F6 版本迁移', () => {
       relations: [{ id: 'r1', from: 'c1', to: 'c2', type: '挚友', directed: false, description: '' }],
     }))
     const res = await repo.importZip(new Blob([zipSync(files)]), 'overwrite')
-    expect(res.meta.schemaVersion).toBe(1)
+    expect(res.meta.schemaVersion).toBe(2)
     const loaded = (await repo.loadProject(p.meta.id))!.data
     expect(loaded.relations).toHaveLength(1)
     const rt = loaded.settings.relationTypes.find((t) => t.name === '挚友')
     expect(rt).toBeDefined()
+    expect(rt!.arrow).toBe('none')
     expect(loaded.relations[0].typeId).toBe(rt!.id)
-    void strFromU8
+  })
+
+  it('v1 zip（relationTypes.directed 布尔）导入后升级 v2：true→single / false→none', async () => {
+    const p = makeProject()
+    const bytes = buildZip(p, [])
+    const { unzipSync, zipSync, strToU8, strFromU8 } = await import('fflate')
+    const files: Record<string, Uint8Array> = { ...unzipSync(bytes) }
+    files['project.json'] = strToU8(JSON.stringify({ ...p.meta, schemaVersion: 1 }))
+    const settings = JSON.parse(strFromU8(files['settings.json']))
+    settings.relationTypes = [
+      { id: 'rt-old-1', name: '师徒', color: '#7d9cb5', directed: true },
+      { id: 'rt-old-2', name: '同盟', color: '#8fae8b', directed: false },
+    ]
+    files['settings.json'] = strToU8(JSON.stringify(settings))
+    const res = await repo.importZip(new Blob([zipSync(files)]), 'overwrite')
+    expect(res.meta.schemaVersion).toBe(2)
+    expect(res.warnings.some((w) => w.includes('v1 迁移到 v2'))).toBe(true)
+    const loaded = (await repo.loadProject(p.meta.id))!.data
+    expect(loaded.settings.relationTypes.find((t) => t.name === '师徒')!.arrow).toBe('single')
+    expect(loaded.settings.relationTypes.find((t) => t.name === '同盟')!.arrow).toBe('none')
+  })
+
+  it('存量 v1 数据（直接写库，非 zip 导入）在 loadProject 时升级并回写', async () => {
+    const p = makeProject()
+    p.relations.push({ id: 'r-arrow', from: 'c1', to: 'c2', typeId: 'rt-old-1', description: '' })
+    await repo.createProject('T', p)
+    // 手工把库内数据降级为 v1 形态
+    await db.projects.put({ ...p.meta, schemaVersion: 1 })
+    await db.settings.put({
+      projectId: p.meta.id,
+      calendars: p.settings.calendars,
+      relationTypes: [
+        { id: 'rt-old-1', name: '宿敌', color: '#c2917f', directed: true },
+      ] as never,
+      codexTypes: p.settings.codexTypes,
+      worldlines: p.settings.worldlines,
+    })
+    const loaded = (await repo.loadProject(p.meta.id))!.data
+    expect(loaded.meta.schemaVersion).toBe(2)
+    expect(loaded.settings.relationTypes[0].arrow).toBe('single')
+    // 回写持久化：再次加载仍是 v2
+    const again = (await repo.loadProject(p.meta.id))!.data
+    expect(again.meta.schemaVersion).toBe(2)
+    expect(again.settings.relationTypes[0].arrow).toBe('single')
   })
 })
 
@@ -251,7 +295,7 @@ describe('M1-D1 zip 纯函数（buildZip/parseZip 直测）', () => {
     const p = makeProject()
     const bytes = buildZip(p, [])
     const r = parseZip(bytes)
-    expect(r.fromVersion).toBe(1)
+    expect(r.fromVersion).toBe(2)
     expect(r.data.characters).toHaveLength(2)
     expect(r.warnings).toHaveLength(0)
   })

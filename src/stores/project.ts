@@ -56,8 +56,8 @@ export const useProjectStore = defineStore('project', () => {
       settings: {
         calendars: [{ id: uuid(), name: '通用纪年', offset: 0, unitYears: 1 }],
         relationTypes: [
-          { id: uuid(), name: '亲属', color: palettePick(0), directed: false },
-          { id: uuid(), name: '敌对', color: palettePick(2), directed: true },
+          { id: uuid(), name: '亲属', color: palettePick(0), arrow: 'none' },
+          { id: uuid(), name: '敌对', color: palettePick(2), arrow: 'single' },
         ],
         codexTypes,
         worldlines: [{

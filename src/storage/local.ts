@@ -3,6 +3,7 @@ import { CURRENT_SCHEMA_VERSION } from '@/types'
 import type { EntityRef, LoadedProject, Repository } from './repository'
 import type { WocDB } from './db'
 import { buildZip, parseZip } from './zip'
+import { migrateProject } from './migration'
 import { findOrphanAssets } from '@/utils/integrity'
 import { uuid } from '@/utils/id'
 
@@ -70,18 +71,22 @@ export class LocalRepository implements Repository {
       const { projectId: _pid, ...rest } = r
       return rest
     }
-    return {
-      data: {
-        meta,
-        settings: settingsRow ? { calendars: settingsRow.calendars, relationTypes: settingsRow.relationTypes, codexTypes: settingsRow.codexTypes, worldlines: settingsRow.worldlines } : { calendars: [], relationTypes: [], codexTypes: [], worldlines: [] },
-        relations: relationsRow?.relations ?? [],
-        templates: templatesRow?.templates ?? [],
-        characters: characters.map((c) => strip(c) as Character).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-        codex: codex.map((c) => strip(c) as CodexEntry).sort((a, b) => a.name.localeCompare(b.name)),
-        events: events.map((e) => strip(e) as TimelineEvent).sort((a, b) => a.id.localeCompare(b.id)),
-      },
-      assets: assetRows.map(({ blob: _b, ...m }) => m),
+    let data: ProjectData = {
+      meta,
+      settings: settingsRow ? { calendars: settingsRow.calendars, relationTypes: settingsRow.relationTypes, codexTypes: settingsRow.codexTypes, worldlines: settingsRow.worldlines } : { calendars: [], relationTypes: [], codexTypes: [], worldlines: [] },
+      relations: relationsRow?.relations ?? [],
+      templates: templatesRow?.templates ?? [],
+      characters: characters.map((c) => strip(c) as Character).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+      codex: codex.map((c) => strip(c) as CodexEntry).sort((a, b) => a.name.localeCompare(b.name)),
+      events: events.map((e) => strip(e) as TimelineEvent).sort((a, b) => a.id.localeCompare(b.id)),
     }
+    // 旧版本存量数据（非 zip 导入路径）在加载时升级并回写，如 v1 directed → v2 arrow
+    if (data.meta.schemaVersion < CURRENT_SCHEMA_VERSION) {
+      const migrated = migrateProject(data)
+      data = migrated.data
+      await this.writeAllRows(plain(data))
+    }
+    return { data, assets: assetRows.map(({ blob: _b, ...m }) => m) }
   }
 
   async saveEntities(projectId: string, data: ProjectData, dirty: EntityRef[]): Promise<void> {

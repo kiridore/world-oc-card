@@ -9,7 +9,7 @@ function makeData(charCount = 2, eventCount = 3): ProjectData {
     meta: { id: 'p1', name: '快照测试项目', schemaVersion: 1, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
     settings: {
       calendars: [{ id: 'cal1', name: '通用纪年', offset: 0, unitYears: 1 }],
-      relationTypes: [{ id: 'rt1', name: '亲属', color: '#7d9cb5', directed: false }],
+      relationTypes: [{ id: 'rt1', name: '亲属', color: '#7d9cb5', arrow: 'none' as const }],
       codexTypes: [{ id: 'ct1', key: 'location', name: '地点' }],
       worldlines: [
         { id: 'w1', name: '主世界线', parentWorldlineId: null, forkPointEventId: null, color: '#7d9cb5', status: 'active', order: 0 },

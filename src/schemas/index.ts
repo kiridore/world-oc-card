@@ -53,7 +53,16 @@ export const codexEntrySchema = z.strictObject({
   color: z.string(),
 })
 
-export const relationTypeSchema = z.object({
+export const relationArrowSchema = z.enum(['none', 'single', 'double'])
+export const relationTypeSchema = z.strictObject({
+  id: uuid,
+  name: z.string().min(1),
+  color: z.string(),
+  arrow: relationArrowSchema,
+})
+
+/** v1 旧格式 relationTypes（directed 布尔）——迁移管道 v1→v2 的输入 */
+export const legacyRelationTypeV1Schema = z.object({
   id: uuid,
   name: z.string().min(1),
   color: z.string(),
@@ -138,6 +147,14 @@ export const projectMetaSchema = z.strictObject({
 export const settingsSchema = z.strictObject({
   calendars: z.array(calendarSchema),
   relationTypes: z.array(relationTypeSchema),
+  codexTypes: z.array(codexTypeSchema),
+  worldlines: z.array(worldlineSchema),
+})
+
+/** v1 旧格式 settings.json（relationTypes 为 directed 布尔形态），迁移管道 v1→v2 的输入 */
+export const legacySettingsV1Schema = z.object({
+  calendars: z.array(calendarSchema),
+  relationTypes: z.array(legacyRelationTypeV1Schema),
   codexTypes: z.array(codexTypeSchema),
   worldlines: z.array(worldlineSchema),
 })

@@ -72,7 +72,7 @@ describe('settings schema', () => {
   it('世界线/历法合法样例通过', () => {
     const r = parseWith(settingsSchema, {
       calendars: [{ id: 'cal1', name: '第三纪元', offset: 0, unitYears: 1 }],
-      relationTypes: [{ id: 'rt1', name: '亲属', color: '#7d9cb5', directed: false }],
+      relationTypes: [{ id: 'rt1', name: '亲属', color: '#7d9cb5', arrow: 'none' as const }],
       codexTypes: [{ id: 'ct1', key: 'location', name: '地点' }],
       worldlines: [{ id: 'w1', name: '主世界线', parentWorldlineId: null, forkPointEventId: null, color: '#7d9cb5', status: 'active', order: 0 }],
     })

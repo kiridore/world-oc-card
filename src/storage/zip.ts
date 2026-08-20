@@ -3,7 +3,7 @@ import { zipSync, strToU8, strFromU8, unzipSync } from 'fflate'
 import type { AssetMeta, ProjectData } from '@/types'
 import { CURRENT_SCHEMA_VERSION } from '@/types'
 import {
-  parseWith, projectMetaSchema, settingsSchema, relationsFileSchema, legacyRelationsFileSchema,
+  parseWith, projectMetaSchema, settingsSchema, legacySettingsV1Schema, relationsFileSchema, legacyRelationsFileSchema,
   templatesFileSchema, charactersFileSchema, codexFileSchema, eventsFileSchema, assetsIndexFileSchema,
 } from '@/schemas'
 import { migrateProject } from './migration'
@@ -47,8 +47,14 @@ export function parseZip(bytes: Uint8Array): ParseZipResult {
 
   const pmetaR = parseWith(projectMetaSchema, JSON.parse(strFromU8(files['project.json'])))
   if (!pmetaR.ok) throw new Error(`project.json 校验失败：${pmetaR.error}`)
-  const settingsR = parseWith(settingsSchema, JSON.parse(strFromU8(files['settings.json'])))
-  if (!settingsR.ok) throw new Error(`settings.json 校验失败：${settingsR.error}`)
+  // v2 settings（arrow 三态）；v1 旧形态（directed 布尔）也接受，交迁移管道 v1→v2 统一转换
+  const settingsJson = JSON.parse(strFromU8(files['settings.json']))
+  const settingsR = parseWith(settingsSchema, settingsJson)
+  const legacySettingsR = settingsR.ok ? null : parseWith(legacySettingsV1Schema, settingsJson)
+  let settingsData: ProjectData['settings']
+  if (settingsR.ok) settingsData = settingsR.data
+  else if (legacySettingsR?.ok) settingsData = legacySettingsR.data as unknown as ProjectData['settings']
+  else throw new Error(`settings.json 校验失败：${settingsR.error}`)
 
   const relationsJson = JSON.parse(strFromU8(files['relations.json'] ?? strToU8('{"relations":[]}')))
   const relations = relationsFileSchema.safeParse(relationsJson)
@@ -101,7 +107,7 @@ export function parseZip(bytes: Uint8Array): ParseZipResult {
   const fromVersion = pmetaR.data.schemaVersion
   const data: ProjectData = {
     meta: pmetaR.data,
-    settings: settingsR.data,
+    settings: settingsData,
     relations: relations.success
       ? relations.data.relations
       : legacyRelations.success

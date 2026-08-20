@@ -17,7 +17,7 @@
               class="dot"
               :style="{ background: lineColor(t.color) }"
             />
-            <span>{{ t.name }}{{ t.directed ? ' →' : '' }}</span>
+            <span>{{ t.name }}{{ arrowSymbol(t.arrow) }}</span>
             <span class="count">{{ countOf(t.id) }}</span>
           </label>
         </div>
@@ -129,11 +129,13 @@
           class="tcolor"
           @change="store.updateSettings()"
         >
-        <label class="tdir"><input
-          v-model="t.directed"
-          type="checkbox"
-          @change="store.updateSettings()"
-        > 有向</label>
+        <n-select
+          :value="t.arrow"
+          size="tiny"
+          style="width: 104px"
+          :options="arrowOptions"
+          @update:value="(v: 'none' | 'single' | 'double') => { t.arrow = v; store.updateSettings() }"
+        />
         <button
           class="mini danger"
           @click="removeType(t)"
@@ -190,7 +192,7 @@ const relations = computed(() => store.current?.relations ?? [])
 const relationTypes = computed(() => store.current?.settings.relationTypes ?? [])
 
 const characterOptions = computed(() => characters.value.map((c) => ({ label: c.name, value: c.id })))
-const typeOptions = computed(() => relationTypes.value.map((t) => ({ label: t.name + (t.directed ? ' →' : ''), value: t.id })))
+const typeOptions = computed(() => relationTypes.value.map((t) => ({ label: t.name + arrowSymbol(t.arrow), value: t.id })))
 
 const relFormOk = computed(() => Boolean(relForm.from && relForm.to && relForm.typeId)) // 自环关系允许（M5-E1）
 
@@ -216,7 +218,18 @@ function toggleType(id: string): void {
   enabledTypes.value = next
 }
 
-function graphData(): { nodes: { id: string; data: { name: string } }[]; edges: { id: string; source: string; target: string; data: { color: string; directed: boolean; name: string } }[] } {
+/** 箭头三态符号：无 / 单 → / 双 ↔ */
+function arrowSymbol(arrow: 'none' | 'single' | 'double'): string {
+  return arrow === 'single' ? ' →' : arrow === 'double' ? ' ↔' : ''
+}
+
+const arrowOptions = [
+  { label: '无箭头', value: 'none' },
+  { label: '单箭头 →', value: 'single' },
+  { label: '双箭头 ↔', value: 'double' },
+]
+
+function graphData(): { nodes: { id: string; data: { name: string } }[]; edges: { id: string; source: string; target: string; data: { color: string; arrow: 'none' | 'single' | 'double'; name: string } }[] } {
   const c = chartColors()
   void c
   return {
@@ -227,7 +240,7 @@ function graphData(): { nodes: { id: string; data: { name: string } }[]; edges: 
         const t = relationTypes.value.find((x) => x.id === r.typeId)
         return {
           id: r.id, source: r.from, target: r.to,
-          data: { color: lineColor(t?.color ?? palettePick(9)), directed: t?.directed ?? false, name: t?.name ?? '' },
+          data: { color: lineColor(t?.color ?? palettePick(9)), arrow: t?.arrow ?? 'none', name: t?.name ?? '' },
         }
       }),
   }
@@ -264,11 +277,13 @@ async function render(): Promise<void> {
       },
       edge: {
         style: ((d: unknown) => {
-          const data = (d as { data?: { color?: string; directed?: boolean; name?: string } }).data ?? {}
+          const data = (d as { data?: { color?: string; arrow?: 'none' | 'single' | 'double'; name?: string } }).data ?? {}
+          const arrow = data.arrow ?? 'none'
           return {
             stroke: data.color ?? c.border,
             lineWidth: 1.6,
-            endArrowSize: data.directed ? 6 : 0,
+            endArrowSize: arrow === 'none' ? 0 : 6,     // 单/双箭头：终点箭头
+            startArrowSize: arrow === 'double' ? 6 : 0, // 双箭头：起点箭头
             labelText: data.name ?? '',
             labelFill: c.text3,
             labelFontSize: 10,
@@ -332,7 +347,7 @@ function addType(): void {
   if (!store.current) return
   const n = store.current.settings.relationTypes.length
   store.current.settings.relationTypes.push({
-    id: uuid(), name: `新类型 ${n + 1}`, color: palettePick(n), directed: true,
+    id: uuid(), name: `新类型 ${n + 1}`, color: palettePick(n), arrow: 'single',
   })
   store.updateSettings()
 }
