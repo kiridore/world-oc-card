@@ -196,7 +196,12 @@ async function onImport(): Promise<void> {
 h1 { margin: 0; font-size: 20px; }
 .actions { display: flex; gap: var(--space-1); }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-2); }
-.card { padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); cursor: default; }
+.card { padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); cursor: default; animation: fadeUp 0.2s ease-out both; }
+.card:nth-child(2) { animation-delay: 40ms; }
+.card:nth-child(3) { animation-delay: 80ms; }
+.card:nth-child(4) { animation-delay: 120ms; }
+.card:nth-child(5) { animation-delay: 160ms; }
+.card:nth-child(n+6) { animation-delay: 200ms; }
 .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); }
 .card-name { font-size: 16px; font-weight: 600; }
 .card-time { font-size: 12px; color: var(--text-3); white-space: nowrap; }

@@ -216,12 +216,12 @@
                   >{{ c.items[0].e.time.display }}</text>
                 </g>
 
-                <!-- 多事件 · 已展开：纵向错开 + 收起入口 -->
+                <!-- 多事件 · 已展开：纵向错开 + 弹出动画 + 收起入口 -->
                 <template v-else>
                   <g
                     v-for="(it, i) in c.items"
                     :key="it.e.id"
-                    class="event"
+                    class="event pop"
                     :class="{ inherited: it.dim }"
                     @click.stop="openEvent(it.e)"
                   >
@@ -787,9 +787,13 @@ onUnmounted(() => resizeObs?.disconnect())
 .board:active { cursor: grabbing; }
 .axis-svg { display: block; }
 .lane-name { font-size: 12px; font-weight: 500; }
-.event circle { cursor: pointer; stroke: var(--surface); stroke-width: 2; }
+.event circle { cursor: pointer; stroke: var(--surface); stroke-width: 2; transition: r 0.15s ease-out; }
+.event:not(.cluster):hover circle:not(.hit) { r: 8px; }
 .event circle.locked { stroke: var(--accent); stroke-width: 2.5; }
 .event.inherited circle { cursor: pointer; }
+/* 聚簇展开：事件点弹出（transform-box 让 SVG g 以自身中心缩放） */
+@keyframes popIn { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+.event.pop { transform-box: fill-box; transform-origin: center; animation: popIn 0.16s ease-out; }
 .event-label { fill: var(--text-1); font-size: 12px; pointer-events: none; }
 .event-label.dim { fill: var(--text-3); }
 .event-time { fill: var(--text-3); font-size: 10px; pointer-events: none; }

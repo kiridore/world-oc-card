@@ -36,7 +36,10 @@ const toggle = () => theme.toggle()
   width: 32px; height: 32px;
   display: grid; place-items: center;
   cursor: pointer;
-  transition: color 0.15s ease-out, border-color 0.15s ease-out;
+  transition: color 0.15s ease-out, border-color 0.15s ease-out, transform 0.12s ease-out;
 }
 .theme-toggle:hover { color: var(--accent-text); border-color: var(--accent); }
+.theme-toggle:active { transform: scale(0.92); }
+.theme-toggle svg { transition: transform 0.25s ease-out; }
+.theme-toggle:hover svg { transform: rotate(-18deg); }
 </style>

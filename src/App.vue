@@ -49,7 +49,10 @@
               <ThemeToggle />
             </div>
           </aside>
-          <main class="main">
+          <main
+            :key="$route.path"
+            class="main"
+          >
             <RouterView />
           </main>
         </div>
