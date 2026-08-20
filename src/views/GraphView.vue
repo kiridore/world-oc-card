@@ -399,7 +399,13 @@ onUnmounted(() => {
 .type-filter .dot { width: 10px; height: 10px; border-radius: 50%; }
 .count { font-size: 11px; color: var(--text-3); }
 .ops { display: flex; gap: 8px; }
-.graph-wrap { flex: 1; min-height: 0; position: relative; background: var(--surface); overflow: hidden; }
+/* 底部点阵（移动暗示）：节点平移/缩放时相对静态点阵运动；颜色走 token 随主题切换 */
+.graph-wrap {
+  flex: 1; min-height: 0; position: relative; overflow: hidden;
+  background-color: var(--surface);
+  background-image: radial-gradient(var(--border) 1.1px, transparent 1.1px);
+  background-size: 26px 26px;
+}
 .g6-container { width: 100%; height: 100%; }
 .overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
 .rel-form { display: flex; flex-direction: column; gap: 10px; }

@@ -98,6 +98,17 @@
             :height="boardH"
             class="axis-svg"
           >
+            <!-- 缩放比例暗示：序位网格竖线（随缩放/平移/惯性移动；间隔随缩放自适应疏密） -->
+            <g class="rank-grid">
+              <line
+                v-for="r in rankGrid"
+                :key="r"
+                :x1="xOfRank(r)"
+                y1="0"
+                :x2="xOfRank(r)"
+                :y2="boardH"
+              />
+            </g>
             <!-- 序位轴：等距只表达先后顺序，无时间刻度；时间信息在事件点下方标注 -->
             <!-- 轨道 -->
             <g
@@ -552,6 +563,17 @@ const timedTotal = computed(() => eventGroups.value.reduce((n, g) => n + g.event
 const rankIndex = computed(() => rankEvents(store.current?.events ?? [], store.current?.settings.calendars ?? []))
 const rankSize = computed(() => rankIndex.value.size)
 
+/** 网格竖线（缩放暗示）：整数序位处画淡线；缩得太远时按 1/5/25… 自适应抽稀，保持 ≥14px 间距 */
+const rankGrid = computed(() => {
+  const span = Math.max(view.end - view.start, 0.001)
+  const pxPer = (boardW.value - pad * 2) / span
+  let step = 1
+  while (step * pxPer < 14) step *= 5
+  const out: number[] = []
+  for (let r = Math.ceil(view.start / step) * step; r <= view.end; r += step) out.push(r)
+  return out.length > 400 ? out.slice(0, 400) : out
+})
+
 watch(rankSize, (n) => {
   // 序位 0..n-1，两侧各留 1 格边距；事件增删时回到全景
   view.start = -1
@@ -829,6 +851,7 @@ onUnmounted(() => { resizeObs?.disconnect(); stopMomentum() })
 .board { flex: 1; min-width: 0; overflow: hidden; position: relative; cursor: grab; background: var(--surface); }
 .board:active { cursor: grabbing; }
 .axis-svg { display: block; }
+.rank-grid line { stroke: var(--border-weak); stroke-width: 1; opacity: 0.55; }
 .lane-name { font-size: 12px; font-weight: 500; }
 .event circle { cursor: pointer; stroke: var(--surface); stroke-width: 2; transition: r 0.15s ease-out; }
 .event:not(.cluster):hover circle:not(.hit) { r: 8px; }
