@@ -108,6 +108,27 @@ test('M7-E1 子路由刷新不 404（hash 路由）', async ({ page }) => {
   await expect(page.getByRole('button', { name: /新建草稿事件/ }).first()).toBeVisible({ timeout: 8000 })
 })
 
+test('M4 全部事件列表：按世界线分组、时间排序、可选中（含同刻重叠事件）', async ({ page }) => {
+  await freshProject(page, '事件列表演证')
+  await page.goto('/#/timeline')
+  // 建两个同刻事件（时间均为默认 0，模拟重叠场景）
+  for (let i = 0; i < 2; i++) {
+    await page.getByRole('button', { name: /新建事件/ }).click()
+    await page.getByRole('button', { name: '创建并编辑' }).click()
+    await page.waitForTimeout(400)
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(200)
+  }
+  // 侧栏出现分组列表：主世界线（2）
+  const groupHead = page.getByText(/主世界线（2）/)
+  await expect(groupHead).toBeVisible({ timeout: 5000 })
+  // 点击第二行 → 打开事件抽屉（重叠事件可选中）
+  const rows = page.locator('.ev-row')
+  await expect(rows).toHaveCount(2)
+  await rows.nth(1).click()
+  await expect(page.getByText(/事件：新事件/).first()).toBeVisible({ timeout: 5000 })
+})
+
 test('M7 巡检面板打开显示健康状态', async ({ page }) => {
   await freshProject(page, '巡检验证')
   await page.getByTitle('完整性巡检（失效引用 / 孤儿资产）').click()

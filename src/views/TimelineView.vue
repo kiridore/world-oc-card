@@ -148,7 +148,7 @@
                 :stroke="lineColor(lane.w.color)"
                 fill="none"
               />
-              <!-- 继承事件（淡化） -->
+              <!-- 继承事件（淡化；同刻事件纵向错开，保证可点选） -->
               <g
                 v-for="e in lane.view.inherited"
                 :key="'i' + e.id"
@@ -157,14 +157,14 @@
               >
                 <circle
                   :cx="xOf(e)"
-                  :cy="laneY(lane.index)"
+                  :cy="eventY(lane, e)"
                   r="5"
                   :fill="lineColor(lane.w.color)"
                   opacity="0.45"
                 />
                 <text
                   :x="xOf(e)"
-                  :y="laneY(lane.index) - 10"
+                  :y="eventY(lane, e) - 10"
                   class="event-label dim"
                   text-anchor="middle"
                 >{{ e.title }}</text>
@@ -178,21 +178,21 @@
               >
                 <circle
                   :cx="xOf(e)"
-                  :cy="laneY(lane.index)"
+                  :cy="eventY(lane, e)"
                   r="6"
                   :fill="lineColor(lane.w.color)"
                   :class="{ locked: e.locked }"
                 />
                 <text
                   :x="xOf(e)"
-                  :y="laneY(lane.index) - 12"
+                  :y="eventY(lane, e) - 12"
                   class="event-label"
                   text-anchor="middle"
                 >{{ e.title }}</text>
                 <text
                   v-if="e.participantIds.length"
                   :x="xOf(e)"
-                  :y="laneY(lane.index) + 18"
+                  :y="eventY(lane, e) + 18"
                   class="event-meta"
                   text-anchor="middle"
                 >{{ e.participantIds.length }} 角色</text>
@@ -208,7 +208,7 @@
           </svg>
         </div>
 
-        <!-- 未定时事件收纳 -->
+        <!-- 侧栏：未定时草稿 + 全部事件（按世界线分组、按时间排序） -->
         <aside class="untimed panel">
           <div class="untimed-title">
             未定时草稿（{{ untimedEvents.length }}）
@@ -229,11 +229,45 @@
           <n-button
             size="tiny"
             quaternary
-            style="margin-top: 8px"
+            style="margin-top: 4px"
             @click="router.push('/timeline/canvas')"
           >
             去画布整理 <ArrowRight :size="12" />
           </n-button>
+
+          <div class="untimed-divider" />
+          <div class="untimed-title">
+            全部事件（{{ timedTotal }}）
+          </div>
+          <div
+            v-for="g in eventGroups"
+            :key="g.w.id"
+            class="ev-group"
+          >
+            <div
+              class="ev-group-head"
+              :style="{ color: lineColor(g.w.color) }"
+            >
+              <span
+                class="ev-dot"
+                :style="{ background: lineColor(g.w.color) }"
+              />{{ g.w.name }}（{{ g.events.length }}）
+            </div>
+            <div
+              v-for="e in g.events"
+              :key="e.id"
+              class="untimed-item ev-row"
+              :title="e.time?.display"
+              @click="openEvent(e)"
+            >
+              <span class="ev-time">{{ e.time?.display }}</span>{{ e.title }}
+            </div>
+          </div>
+          <n-empty
+            v-if="eventGroups.length === 0"
+            size="small"
+            description="暂无定时事件"
+          />
         </aside>
       </div>
     </div>
@@ -356,6 +390,28 @@ interface Lane {
   view: WorldlineView
   index: number
   forkPoint: { path: string } | null
+  /** 同刻（相同绝对纪元）事件 → 纵向错开偏移，解决叠在一起无法点选 */
+  offsets: Map<string, number>
+}
+
+/** 同刻事件纵向扇形错开：第 i 个偏移 ((i%5)-2)*16 → 0/±16/±32 循环 */
+function clusterOffsets(events: TimelineEvent[]): Map<string, number> {
+  const cal = store.current?.settings.calendars ?? []
+  const sorted = [...events].sort((a, b) => (eventAbs(a, cal) ?? 0) - (eventAbs(b, cal) ?? 0))
+  const map = new Map<string, number>()
+  let key: number | null = null
+  let group: TimelineEvent[] = []
+  const flush = (): void => {
+    group.forEach((e, i) => map.set(e.id, ((i % 5) - 2) * 16))
+    group = []
+  }
+  for (const e of sorted) {
+    const a = eventAbs(e, cal) ?? 0
+    if (key !== null && a === key) group.push(e)
+    else { flush(); key = a; group = [e] }
+  }
+  flush()
+  return map
 }
 
 // 基础轨道（fork 曲线需要父线 y——父线必然排在子线前面）
@@ -365,9 +421,16 @@ const lanes0 = computed<Lane[]>(() => {
     .filter((v) => visibleLanes.value.has(v.worldlineId))
     .map((v) => {
       const w = worldlines.value.find((x) => x.id === v.worldlineId)!
-      return { w, view: v, index: index++, forkPoint: null }
+      return {
+        w, view: v, index: index++, forkPoint: null,
+        offsets: clusterOffsets([...v.inherited, ...v.own]),
+      }
     })
 })
+
+function eventY(lane: Lane, e: TimelineEvent): number {
+  return laneY(lane.index) + (lane.offsets.get(e.id) ?? 0)
+}
 
 const lanes = computed<Lane[]>(() => {
   const cal = store.current?.settings.calendars ?? []
@@ -386,6 +449,24 @@ const lanes = computed<Lane[]>(() => {
 
 const untimedEvents = computed(() =>
   (store.current?.events ?? []).filter((e) => e.time === null))
+
+/** 侧栏「全部事件」：按世界线分组（order 序），组内按绝对纪元升序 */
+const eventGroups = computed(() => {
+  const data = store.current
+  if (!data) return []
+  const cal = data.settings.calendars
+  return [...data.settings.worldlines]
+    .sort((a, b) => a.order - b.order)
+    .map((w) => ({
+      w,
+      events: data.events
+        .filter((e) => e.worldlineId === w.id && e.time !== null)
+        .sort((a, b) => (eventAbs(a, cal) ?? 0) - (eventAbs(b, cal) ?? 0)),
+    }))
+    .filter((g) => g.events.length > 0)
+})
+
+const timedTotal = computed(() => eventGroups.value.reduce((n, g) => n + g.events.length, 0))
 
 // 时间域
 const allAbs = computed(() => {
@@ -647,9 +728,15 @@ onUnmounted(() => resizeObs?.disconnect())
 .event-meta { fill: var(--text-3); font-size: 10px; pointer-events: none; }
 .fork-curve { stroke-width: 1.5; stroke-dasharray: 4 3; opacity: 0.8; }
 .empty-hint { fill: var(--text-3); font-size: 13px; }
-.untimed { width: 220px; flex-shrink: 0; padding: var(--space-2); display: flex; flex-direction: column; gap: 8px; overflow: auto; }
+.untimed { width: 264px; flex-shrink: 0; padding: var(--space-2); display: flex; flex-direction: column; gap: 8px; overflow: auto; }
 .untimed-title { font-size: 12px; color: var(--text-3); }
 .untimed-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); cursor: pointer; padding: 5px 8px; border-radius: var(--radius-s); }
 .untimed-item:hover { background: var(--surface-2); color: var(--text-1); }
+.untimed-divider { border-top: 1px solid var(--border-weak); margin: 6px 0 2px; }
+.ev-group { display: flex; flex-direction: column; gap: 2px; }
+.ev-group-head { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; margin: 6px 0 2px; }
+.ev-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ev-row { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev-time { font-size: 11px; color: var(--text-3); flex-shrink: 0; }
 .new-ev { display: flex; gap: 10px; align-items: center; }
 </style>
