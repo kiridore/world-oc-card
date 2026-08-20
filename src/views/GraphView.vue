@@ -241,7 +241,10 @@ async function render(): Promise<void> {
   if (!graph) {
     graph = new Graph({
       container: el,
+      // 自适应视图但钳制缩放：少节点时不过度放大（≤1.25），大图可充分缩小（≥0.15）
       autoFit: 'view',
+      padding: 120,
+      zoomRange: [0.15, 1.25],
       data,
       layout: { type: 'force', linkDistance: 140, nodeStrength: -60, collide: 22 },
       node: {
