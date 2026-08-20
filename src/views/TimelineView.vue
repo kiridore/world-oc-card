@@ -394,6 +394,7 @@ import { useProjectStore } from '@/stores/project'
 import { useThemeStore } from '@/stores/theme'
 import { eventAbs } from '@/utils/calendar'
 import { clampSpan } from '@/utils/zoom'
+import { flingVelocity, clampFlingV, FLING_TAU, FLING_STOP_V } from '@/utils/fling'
 import { rankEvents, suggestInsertAbs } from '@/utils/timelineOrder'
 import { allWorldlineViews, type WorldlineView } from '@/utils/fork'
 import { resolveDataColor } from '@/utils/colors'
@@ -583,6 +584,7 @@ function onWheel(ev: WheelEvent): void {
   const rect = boardEl.value!.getBoundingClientRect()
   const x = ev.clientX - rect.left
   const anchor = rankAtX(x)
+  stopMomentum() // 缩放打断惯性滑行
   const factor = ev.deltaY > 0 ? 1.15 : 1 / 1.15
   const start = anchor - (anchor - view.start) * factor
   const end = anchor + (view.end - anchor) * factor
@@ -598,13 +600,45 @@ let dragStart0 = 0
 let dragEnd0 = 0
 let dragMoved = false
 
+// ---- 惯性滑动（松手后滑行一小段）----
+let momentumRaf: number | null = null
+let flingSamples: { x: number; t: number }[] = []
+
+function stopMomentum(): void {
+  if (momentumRaf !== null) { cancelAnimationFrame(momentumRaf); momentumRaf = null }
+}
+
+function pxToRankDelta(px: number): number {
+  return (px / Math.max(boardW.value - pad * 2, 1)) * (view.end - view.start)
+}
+
+function startMomentum(vPxMs: number): void {
+  if (Math.abs(vPxMs) < 0.05) return
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  let v = clampFlingV(vPxMs)
+  let last = performance.now()
+  const step = (now: number): void => {
+    const dt = Math.min(now - last, 48) // 掉帧保护，避免一次大 dt 瞬移
+    last = now
+    const dr = pxToRankDelta(v * dt)
+    view.start += dr
+    view.end += dr
+    v *= Math.exp(-dt / FLING_TAU)
+    if (Math.abs(v) > FLING_STOP_V) momentumRaf = requestAnimationFrame(step)
+    else momentumRaf = null
+  }
+  momentumRaf = requestAnimationFrame(step)
+}
+
 function onPointerDown(ev: PointerEvent): void {
   if ((ev.target as HTMLElement).closest('.event')) return
+  stopMomentum()
   dragging = true
   dragMoved = false
   dragX = ev.clientX
   dragStart0 = view.start
   dragEnd0 = view.end
+  flingSamples = [{ x: ev.clientX, t: performance.now() }]
   ;(ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId)
 }
 
@@ -616,9 +650,18 @@ function onPointerMove(ev: PointerEvent): void {
   const dAbs = (-dx / (boardW.value - pad * 2)) * span
   view.start = dragStart0 + dAbs
   view.end = dragEnd0 + dAbs
+  flingSamples.push({ x: ev.clientX, t: performance.now() })
+  if (flingSamples.length > 24) flingSamples.shift()
 }
 
-function onPointerUp(): void { dragging = false }
+function onPointerUp(): void {
+  if (!dragging) return
+  dragging = false
+  if (!dragMoved) return
+  // 视口随拖动反向移动：滑行速度取指针速度的相反数
+  const v = flingVelocity(flingSamples, performance.now())
+  if (v !== null) startMomentum(-v)
+}
 
 /** 点击轨道空白处：在该线、点击位置两侧事件之间插入（时间取左右邻事件中值，保持先后顺序） */
 function onBoardClick(ev: MouseEvent): void {
@@ -767,7 +810,7 @@ onMounted(() => {
   })
   if (boardEl.value) resizeObs.observe(boardEl.value)
 })
-onUnmounted(() => resizeObs?.disconnect())
+onUnmounted(() => { resizeObs?.disconnect(); stopMomentum() })
 </script>
 
 <style scoped>

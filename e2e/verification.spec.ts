@@ -175,6 +175,41 @@ test('M4 缩放尺度限制：极端放大/缩小后无错误且视图可恢复'
   expect(errors).toEqual([])
 })
 
+test('M4 时间轴拖拽惯性：松手后继续滑行且无错误', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  await freshProject(page, '惯性别证')
+  await page.goto('/#/timeline')
+  await page.getByRole('button', { name: /新建事件/ }).click()
+  await page.getByRole('button', { name: '创建并编辑' }).click()
+  await page.waitForTimeout(500)
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400)
+
+  const board = page.locator('.board')
+  const box = await board.boundingBox()
+  const cx = box!.x + box!.width / 2
+  const cy = box!.y + 130
+  // 快速拖拽释放：断言滑行（释放后圆点 x 仍在变化）
+  await page.mouse.move(cx + 60, cy)
+  await page.mouse.down()
+  for (let i = 0; i < 6; i++) {
+    await page.mouse.move(cx + 60 - i * 18, cy, { steps: 1 })
+    await page.waitForTimeout(16)
+  }
+  await page.mouse.up()
+  const dot = page.locator('svg g.event circle:not(.hit)').first()
+  const x1 = Number(await dot.getAttribute('cx'))
+  await page.waitForTimeout(120)
+  const x2 = Number(await dot.getAttribute('cx'))
+  await page.waitForTimeout(500)
+  const x3 = Number(await dot.getAttribute('cx'))
+  // x1→x2：惯性滑行中；x2→x3：已停止（衰减完成）
+  expect(Math.abs(x2 - x1)).toBeGreaterThan(1)
+  expect(Math.abs(x3 - x2)).toBeLessThan(Math.abs(x2 - x1))
+  expect(errors).toEqual([])
+})
+
 test('M7 巡检面板打开显示健康状态', async ({ page }) => {
   await freshProject(page, '巡检验证')
   await page.getByTitle('完整性巡检（失效引用 / 孤儿资产）').click()
