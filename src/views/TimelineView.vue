@@ -148,55 +148,124 @@
                 :stroke="lineColor(lane.w.color)"
                 fill="none"
               />
-              <!-- 继承事件（淡化；同刻事件纵向错开，保证可点选） -->
-              <g
-                v-for="e in lane.view.inherited"
-                :key="'i' + e.id"
-                class="event inherited"
-                @click.stop="openEvent(e)"
+              <!-- 事件按"同刻簇"渲染：单事件直出；多事件折叠为 ×N 聚合点，点击展开/收起 -->
+              <template
+                v-for="c in lane.clusters"
+                :key="c.key"
               >
-                <circle
-                  :cx="xOf(e)"
-                  :cy="eventY(lane, e)"
-                  r="5"
-                  :fill="lineColor(lane.w.color)"
-                  opacity="0.45"
-                />
-                <text
-                  :x="xOf(e)"
-                  :y="eventY(lane, e) - 10"
-                  class="event-label dim"
-                  text-anchor="middle"
-                >{{ e.title }}</text>
-              </g>
-              <!-- 本线事件 -->
-              <g
-                v-for="e in lane.view.own"
-                :key="e.id"
-                class="event"
-                @click.stop="openEvent(e)"
-              >
-                <circle
-                  :cx="xOf(e)"
-                  :cy="eventY(lane, e)"
-                  r="6"
-                  :fill="lineColor(lane.w.color)"
-                  :class="{ locked: e.locked }"
-                />
-                <text
-                  :x="xOf(e)"
-                  :y="eventY(lane, e) - 12"
-                  class="event-label"
-                  text-anchor="middle"
-                >{{ e.title }}</text>
-                <text
-                  v-if="e.participantIds.length"
-                  :x="xOf(e)"
-                  :y="eventY(lane, e) + 18"
-                  class="event-meta"
-                  text-anchor="middle"
-                >{{ e.participantIds.length }} 角色</text>
-              </g>
+                <!-- 单事件（继承事件淡化；透明命中圆扩大点击区） -->
+                <g
+                  v-if="c.items.length === 1"
+                  class="event"
+                  :class="{ inherited: c.items[0].dim }"
+                  @click.stop="openEvent(c.items[0].e)"
+                >
+                  <circle
+                    :cx="xOf(c.items[0].e)"
+                    :cy="laneY(lane.index)"
+                    r="14"
+                    fill="transparent"
+                    class="hit"
+                  />
+                  <circle
+                    :cx="xOf(c.items[0].e)"
+                    :cy="laneY(lane.index)"
+                    :r="c.items[0].dim ? 5 : 6"
+                    :fill="lineColor(lane.w.color)"
+                    :opacity="c.items[0].dim ? 0.45 : 1"
+                    :class="{ locked: c.items[0].e.locked }"
+                  />
+                  <text
+                    :x="xOf(c.items[0].e)"
+                    :y="laneY(lane.index) - (c.items[0].dim ? 10 : 12)"
+                    class="event-label"
+                    :class="{ dim: c.items[0].dim }"
+                    text-anchor="middle"
+                  >{{ c.items[0].e.title }}</text>
+                  <text
+                    v-if="!c.items[0].dim && c.items[0].e.participantIds.length"
+                    :x="xOf(c.items[0].e)"
+                    :y="laneY(lane.index) + 18"
+                    class="event-meta"
+                    text-anchor="middle"
+                  >{{ c.items[0].e.participantIds.length }} 角色</text>
+                </g>
+
+                <!-- 多事件 · 折叠聚合点 -->
+                <g
+                  v-else-if="!expandedClusters.has(c.key)"
+                  class="event cluster"
+                  @click.stop="toggleCluster(c.key)"
+                >
+                  <title>{{ c.items.map((it) => it.e.title).join(' / ') }}</title>
+                  <circle
+                    :cx="xOf(c.items[0].e)"
+                    :cy="laneY(lane.index)"
+                    r="16"
+                    fill="transparent"
+                    class="hit"
+                  />
+                  <circle
+                    :cx="xOf(c.items[0].e)"
+                    :cy="laneY(lane.index)"
+                    r="9"
+                    :fill="lineColor(lane.w.color)"
+                  />
+                  <text
+                    :x="xOf(c.items[0].e)"
+                    :y="laneY(lane.index) + 4"
+                    class="cluster-count"
+                    text-anchor="middle"
+                  >{{ c.items.length }}</text>
+                  <text
+                    :x="xOf(c.items[0].e)"
+                    :y="laneY(lane.index) - 16"
+                    class="event-label"
+                    text-anchor="middle"
+                  >{{ c.items[0].e.title }} 等 {{ c.items.length }} 个</text>
+                </g>
+
+                <!-- 多事件 · 已展开：纵向错开 + 收起入口 -->
+                <template v-else>
+                  <g
+                    v-for="(it, i) in c.items"
+                    :key="it.e.id"
+                    class="event"
+                    :class="{ inherited: it.dim }"
+                    @click.stop="openEvent(it.e)"
+                  >
+                    <circle
+                      :cx="xOf(it.e)"
+                      :cy="laneY(lane.index) + staggerY(i)"
+                      r="14"
+                      fill="transparent"
+                      class="hit"
+                    />
+                    <circle
+                      :cx="xOf(it.e)"
+                      :cy="laneY(lane.index) + staggerY(i)"
+                      :r="it.dim ? 5 : 6"
+                      :fill="lineColor(lane.w.color)"
+                      :opacity="it.dim ? 0.45 : 1"
+                      :class="{ locked: it.e.locked }"
+                    />
+                    <text
+                      :x="xOf(it.e)"
+                      :y="laneY(lane.index) + staggerY(i) - 12"
+                      class="event-label"
+                      :class="{ dim: it.dim }"
+                      text-anchor="middle"
+                    >{{ it.e.title }}</text>
+                  </g>
+                  <text
+                    :x="xOf(c.items[0].e)"
+                    :y="laneY(lane.index) + 34"
+                    class="cluster-collapse"
+                    text-anchor="middle"
+                    @click.stop="toggleCluster(c.key)"
+                  >收起 ×{{ c.items.length }}</text>
+                </template>
+              </template>
             </g>
             <text
               v-if="lanes.length === 0"
@@ -385,33 +454,44 @@ watch(expandAbandoned, () => {
 
 const views = computed(() => (store.current ? allWorldlineViews(store.current) : []))
 
+interface ClusterItem { e: TimelineEvent; dim: boolean }
+interface EvCluster { key: string; items: ClusterItem[] }
+
 interface Lane {
   w: Worldline
   view: WorldlineView
   index: number
   forkPoint: { path: string } | null
-  /** 同刻（相同绝对纪元）事件 → 纵向错开偏移，解决叠在一起无法点选 */
-  offsets: Map<string, number>
+  /** 同刻（相同绝对纪元）事件聚合簇：单事件簇直出，多事件簇默认折叠为 ×N 点 */
+  clusters: EvCluster[]
 }
 
-/** 同刻事件纵向扇形错开：第 i 个偏移 ((i%5)-2)*16 → 0/±16/±32 循环 */
-function clusterOffsets(events: TimelineEvent[]): Map<string, number> {
+/** 展开的多事件簇（key = `${worldlineId}:${abs}`），点击聚合点切换 */
+const expandedClusters = ref<Set<string>>(new Set())
+
+function toggleCluster(key: string): void {
+  const next = new Set(expandedClusters.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  expandedClusters.value = next
+}
+
+/** 展开簇内第 i 个事件的纵向错开：0/±16/±32 循环 */
+function staggerY(i: number): number {
+  return ((i % 5) - 2) * 16
+}
+
+function buildClusters(worldlineId: string, events: ClusterItem[]): EvCluster[] {
   const cal = store.current?.settings.calendars ?? []
-  const sorted = [...events].sort((a, b) => (eventAbs(a, cal) ?? 0) - (eventAbs(b, cal) ?? 0))
-  const map = new Map<string, number>()
-  let key: number | null = null
-  let group: TimelineEvent[] = []
-  const flush = (): void => {
-    group.forEach((e, i) => map.set(e.id, ((i % 5) - 2) * 16))
-    group = []
+  const sorted = [...events].sort((a, b) => (eventAbs(a.e, cal) ?? 0) - (eventAbs(b.e, cal) ?? 0))
+  const clusters: EvCluster[] = []
+  for (const it of sorted) {
+    const a = eventAbs(it.e, cal) ?? 0
+    const last = clusters[clusters.length - 1]
+    if (last && last.key.endsWith(`:${a}`)) last.items.push(it)
+    else clusters.push({ key: `${worldlineId}:${a}`, items: [it] })
   }
-  for (const e of sorted) {
-    const a = eventAbs(e, cal) ?? 0
-    if (key !== null && a === key) group.push(e)
-    else { flush(); key = a; group = [e] }
-  }
-  flush()
-  return map
+  return clusters
 }
 
 // 基础轨道（fork 曲线需要父线 y——父线必然排在子线前面）
@@ -423,14 +503,13 @@ const lanes0 = computed<Lane[]>(() => {
       const w = worldlines.value.find((x) => x.id === v.worldlineId)!
       return {
         w, view: v, index: index++, forkPoint: null,
-        offsets: clusterOffsets([...v.inherited, ...v.own]),
+        clusters: buildClusters(w.id, [
+          ...v.inherited.map((e) => ({ e, dim: true })),
+          ...v.own.map((e) => ({ e, dim: false })),
+        ]),
       }
     })
 })
-
-function eventY(lane: Lane, e: TimelineEvent): number {
-  return laneY(lane.index) + (lane.offsets.get(e.id) ?? 0)
-}
 
 const lanes = computed<Lane[]>(() => {
   const cal = store.current?.settings.calendars ?? []
@@ -504,7 +583,8 @@ function fmtTick(v: number): string {
   return String(Math.round(v * 100) / 100)
 }
 
-const LANE_BASE = 46
+// 顶部预留：首条轨道下移，避免事件标签/展开错开被顶部工具栏遮挡（含向上错开 ±32 + 标签高度）
+const LANE_BASE = 92
 function laneY(index: number): number { return LANE_BASE + index * laneGap }
 function xOfAbs(abs: number): number {
   const f = (abs - view.start) / (view.end - view.start)
@@ -726,6 +806,12 @@ onUnmounted(() => resizeObs?.disconnect())
 .event-label { fill: var(--text-1); font-size: 12px; pointer-events: none; }
 .event-label.dim { fill: var(--text-3); }
 .event-meta { fill: var(--text-3); font-size: 10px; pointer-events: none; }
+.event .hit { cursor: pointer; }
+.event.cluster circle { cursor: pointer; stroke: var(--surface); stroke-width: 2; }
+.event.cluster { cursor: pointer; }
+.cluster-count { fill: var(--surface); font-size: 10px; font-weight: 700; pointer-events: none; }
+.cluster-collapse { fill: var(--text-3); font-size: 10px; cursor: pointer; }
+.cluster-collapse:hover { fill: var(--accent-text); }
 .fork-curve { stroke-width: 1.5; stroke-dasharray: 4 3; opacity: 0.8; }
 .empty-hint { fill: var(--text-3); font-size: 13px; }
 .untimed { width: 264px; flex-shrink: 0; padding: var(--space-2); display: flex; flex-direction: column; gap: 8px; overflow: auto; }

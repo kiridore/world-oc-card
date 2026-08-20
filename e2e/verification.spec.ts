@@ -108,10 +108,10 @@ test('M7-E1 子路由刷新不 404（hash 路由）', async ({ page }) => {
   await expect(page.getByRole('button', { name: /新建草稿事件/ }).first()).toBeVisible({ timeout: 8000 })
 })
 
-test('M4 全部事件列表：按世界线分组、时间排序、可选中（含同刻重叠事件）', async ({ page }) => {
-  await freshProject(page, '事件列表演证')
+test('M4 同刻多事件：折叠聚合点（×N）点击展开，轨道首行不被顶部遮挡', async ({ page }) => {
+  await freshProject(page, '聚合点验证')
   await page.goto('/#/timeline')
-  // 建两个同刻事件（时间均为默认 0，模拟重叠场景）
+  // 两个同刻事件（默认时间 0）
   for (let i = 0; i < 2; i++) {
     await page.getByRole('button', { name: /新建事件/ }).click()
     await page.getByRole('button', { name: '创建并编辑' }).click()
@@ -119,14 +119,23 @@ test('M4 全部事件列表：按世界线分组、时间排序、可选中（�
     await page.keyboard.press('Escape')
     await page.waitForTimeout(200)
   }
-  // 侧栏出现分组列表：主世界线（2）
-  const groupHead = page.getByText(/主世界线（2）/)
-  await expect(groupHead).toBeVisible({ timeout: 5000 })
-  // 点击第二行 → 打开事件抽屉（重叠事件可选中）
-  const rows = page.locator('.ev-row')
-  await expect(rows).toHaveCount(2)
-  await rows.nth(1).click()
+  // 侧栏分组列表（可靠选中入口）
+  await expect(page.getByText(/主世界线（2）/)).toBeVisible({ timeout: 5000 })
+  await expect(page.locator('.ev-row')).toHaveCount(2)
+
+  // 轨道上折叠为聚合点：计数 2，点击展开为两个独立事件
+  const cluster = page.locator('g.event.cluster')
+  await expect(cluster).toHaveCount(1)
+  await expect(page.locator('.cluster-count')).toHaveText('2')
+  await cluster.click()
+  await expect(page.locator('svg g.event:not(.cluster) circle:not(.hit)')).toHaveCount(2)
+  await expect(page.getByText('收起 ×2')).toBeVisible()
+  // 展开后点第一个事件圆点 → 抽屉打开
+  await page.locator('svg g.event:not(.cluster) circle:not(.hit)').first().click()
   await expect(page.getByText(/事件：新事件/).first()).toBeVisible({ timeout: 5000 })
+  // 首条轨道下移：事件圆点 y ≥ 60（不被顶部工具栏遮挡）
+  const topCircleY = await page.locator('svg g.event:not(.cluster) circle:not(.hit)').first().boundingBox()
+  expect(topCircleY?.y ?? 0).toBeGreaterThan(60)
 })
 
 test('M7 巡检面板打开显示健康状态', async ({ page }) => {
