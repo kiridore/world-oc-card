@@ -154,15 +154,15 @@ test('M4 缩放尺度限制：极端放大/缩小后无错误且视图可恢复'
   const cx = box!.x + box!.width / 2
   const cy = box!.y + 100
   await page.mouse.move(cx, cy)
-  // 极端放大（40 次）与极端缩小（80 次）——被钳制后不崩溃、刻度不退化
+  // 极端放大（40 次）与极端缩小（80 次）——被钳制后不崩溃、事件仍在渲染
   for (let i = 0; i < 40; i++) await page.mouse.wheel(0, -120)
   for (let i = 0; i < 80; i++) await page.mouse.wheel(0, 120)
   await page.waitForTimeout(500)
-  const tickTexts = await page.locator('.tick-text').allTextContents()
-  const ticksFinite = tickTexts.every((t) => Number.isFinite(Number(String(t).replace(/[^0-9.eE+-]/g, ''))) || t.length > 0)
-  expect(tickTexts.length).toBeGreaterThan(0)
-  expect(ticksFinite).toBe(true)
-  // 缩回可见范围：事件侧栏入口仍可用（列表点击打开抽屉）
+  // 序位轴：等距排布，事件点下标注历法时间文本
+  const timeLabels = await page.locator('.event-time').allTextContents()
+  expect(timeLabels.length).toBeGreaterThan(0)
+  expect(timeLabels.some((t) => t.includes('通用纪年'))).toBe(true)
+  // 侧栏列表入口仍可选中事件（缩放丢失视野后的恢复路径）
   await page.locator('.ev-row').first().click()
   await expect(page.getByText(/事件：新事件/).first()).toBeVisible({ timeout: 5000 })
   await page.keyboard.press('Escape')

@@ -98,24 +98,7 @@
             :height="boardH"
             class="axis-svg"
           >
-            <!-- 中心轴刻度 -->
-            <g
-              v-for="t in ticks"
-              :key="t.x"
-            >
-              <line
-                :x1="t.x"
-                y1="0"
-                :x2="t.x"
-                :y2="boardH"
-                class="tick-line"
-              />
-              <text
-                :x="t.x"
-                :y="boardH - 6"
-                class="tick-text"
-              >{{ t.label }}</text>
-            </g>
+            <!-- 序位轴：等距只表达先后顺序，无时间刻度；时间信息在事件点下方标注 -->
             <!-- 轨道 -->
             <g
               v-for="lane in lanes"
@@ -183,12 +166,13 @@
                     text-anchor="middle"
                   >{{ c.items[0].e.title }}</text>
                   <text
-                    v-if="!c.items[0].dim && c.items[0].e.participantIds.length"
+                    v-if="c.items[0].e.time"
                     :x="xOf(c.items[0].e)"
-                    :y="laneY(lane.index) + 18"
-                    class="event-meta"
+                    :y="laneY(lane.index) + (c.items[0].dim ? 16 : 18)"
+                    class="event-time"
+                    :class="{ dim: c.items[0].dim }"
                     text-anchor="middle"
-                  >{{ c.items[0].e.participantIds.length }} 角色</text>
+                  >{{ c.items[0].e.time.display }}</text>
                 </g>
 
                 <!-- 多事件 · 折叠聚合点 -->
@@ -223,6 +207,13 @@
                     class="event-label"
                     text-anchor="middle"
                   >{{ c.items[0].e.title }} 等 {{ c.items.length }} 个</text>
+                  <text
+                    v-if="c.items[0].e.time"
+                    :x="xOf(c.items[0].e)"
+                    :y="laneY(lane.index) + 22"
+                    class="event-time"
+                    text-anchor="middle"
+                  >{{ c.items[0].e.time.display }}</text>
                 </g>
 
                 <!-- 多事件 · 已展开：纵向错开 + 收起入口 -->
@@ -256,6 +247,14 @@
                       :class="{ dim: it.dim }"
                       text-anchor="middle"
                     >{{ it.e.title }}</text>
+                    <text
+                      v-if="it.e.time"
+                      :x="xOf(it.e)"
+                      :y="laneY(lane.index) + staggerY(i) + 16"
+                      class="event-time"
+                      :class="{ dim: it.dim }"
+                      text-anchor="middle"
+                    >{{ it.e.time.display }}</text>
                   </g>
                   <text
                     :x="xOf(c.items[0].e)"
@@ -395,6 +394,7 @@ import { useProjectStore } from '@/stores/project'
 import { useThemeStore } from '@/stores/theme'
 import { eventAbs } from '@/utils/calendar'
 import { clampSpan } from '@/utils/zoom'
+import { rankEvents, suggestInsertAbs } from '@/utils/timelineOrder'
 import { allWorldlineViews, type WorldlineView } from '@/utils/fork'
 import { resolveDataColor } from '@/utils/colors'
 import { removeWorldlineCascade } from '@/utils/integrity'
@@ -513,14 +513,13 @@ const lanes0 = computed<Lane[]>(() => {
 })
 
 const lanes = computed<Lane[]>(() => {
-  const cal = store.current?.settings.calendars ?? []
   return lanes0.value.map((lane) => {
     const w = lane.w
     if (!w.forkPointEventId) return lane
     const fe = store.current?.events.find((e) => e.id === w.forkPointEventId)
     if (!fe || !fe.time) return lane
     const parentIdx = lanes0.value.findIndex((l) => l.w.id === w.parentWorldlineId)
-    const px = xOfAbs(eventAbs(fe, cal) ?? 0)
+    const px = xOf(fe)
     const y1 = parentIdx >= 0 ? laneY(lanes0.value[parentIdx].index) : laneY(lane.index) - laneGap
     const y2 = laneY(lane.index)
     return { ...lane, forkPoint: { path: `M ${px} ${y1} C ${px} ${y1 + 30}, ${px} ${y2 - 30}, ${px} ${y2}` } }
@@ -548,72 +547,47 @@ const eventGroups = computed(() => {
 
 const timedTotal = computed(() => eventGroups.value.reduce((n, g) => n + g.events.length, 0))
 
-// 时间域
-const allAbs = computed(() => {
-  const cal = store.current?.settings.calendars ?? []
-  const vals: number[] = []
-  for (const e of store.current?.events ?? []) {
-    const a = e.time ? eventAbs(e, cal) : null
-    if (a !== null) vals.push(a)
-  }
-  return vals
-})
+// 事件序位轴（§2.4.4）：x 只表达先后顺序（全局等距 dense 序位），不按时间偏移比例定位
+const rankIndex = computed(() => rankEvents(store.current?.events ?? [], store.current?.settings.calendars ?? []))
+const rankSize = computed(() => rankIndex.value.size)
 
-watch(allAbs, (vals) => {
-  if (vals.length === 0) { view.start = 0; view.end = 100; return }
-  const min = Math.min(...vals), max = Math.max(...vals)
-  const span = Math.max(max - min, 1)
-  view.start = min - span * 0.1
-  view.end = max + span * 0.1
+watch(rankSize, (n) => {
+  // 序位 0..n-1，两侧各留 1 格边距；事件增删时回到全景
+  view.start = -1
+  view.end = Math.max(n, 1)
 }, { immediate: true })
-
-const ticks = computed(() => {
-  const span = view.end - view.start
-  const rawStep = span / 8
-  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)))
-  const step = [1, 2, 5, 10].map((m) => m * mag).find((s) => s >= rawStep) ?? mag * 10
-  const out: { x: number; label: string }[] = []
-  for (let v = Math.ceil(view.start / step) * step; v <= view.end; v += step) {
-    out.push({ x: xOfAbs(v), label: fmtTick(v) })
-  }
-  return out
-})
-
-function fmtTick(v: number): string {
-  if (Math.abs(v) >= 1e5 || (Math.abs(v) < 1 && v !== 0)) return v.toPrecision(3)
-  return String(Math.round(v * 100) / 100)
-}
 
 // 顶部预留：首条轨道下移，避免事件标签/展开错开被顶部工具栏遮挡（含向上错开 ±32 + 标签高度）
 const LANE_BASE = 92
 function laneY(index: number): number { return LANE_BASE + index * laneGap }
-function xOfAbs(abs: number): number {
-  const f = (abs - view.start) / (view.end - view.start)
+/** 序位 → 像素 x（视域为序位空间） */
+function xOfRank(r: number): number {
+  const f = (r - view.start) / (view.end - view.start)
   return pad + f * (boardW.value - pad * 2)
 }
-function absOfX(x: number): number {
+/** 像素 x → 序位（浮点） */
+function rankAtX(x: number): number {
   const f = (x - pad) / (boardW.value - pad * 2)
   return view.start + f * (view.end - view.start)
 }
 function xOf(e: TimelineEvent): number {
-  const cal = store.current?.settings.calendars ?? []
-  return xOfAbs(e.time ? eventAbs(e, cal) ?? 0 : 0)
+  return xOfRank(rankIndex.value.rank.get(e.id) ?? 0)
 }
 
 function lineColor(hex: string): string {
   return resolveDataColor(hex, theme.isDark ? 'dark' : 'light')
 }
 
-// ---- 缩放 / 平移（M4 交互）----
+// ---- 缩放 / 平移（序位空间；事件增删由 watch 重置全景）----
 function onWheel(ev: WheelEvent): void {
   const rect = boardEl.value!.getBoundingClientRect()
   const x = ev.clientX - rect.left
-  const anchor = absOfX(x)
+  const anchor = rankAtX(x)
   const factor = ev.deltaY > 0 ? 1.15 : 1 / 1.15
   const start = anchor - (anchor - view.start) * factor
   const end = anchor + (view.end - anchor) * factor
-  // 缩放尺度限制：最深放大 MIN_SPAN / 最远缩小 MAX_SPAN（utils/zoom.ts）
-  const clamped = clampSpan(start, end)
+  // 缩放尺度限制：最深放大 MIN_SPAN / 最远缩小到序位全景外扩两格（utils/zoom.ts）
+  const clamped = clampSpan(start, end, Math.max(10, rankSize.value + 4))
   view.start = clamped.start
   view.end = clamped.end
 }
@@ -646,7 +620,7 @@ function onPointerMove(ev: PointerEvent): void {
 
 function onPointerUp(): void { dragging = false }
 
-/** 点击轨道空白处：在该线该时刻插入事件（M4 时间轴交互）*/
+/** 点击轨道空白处：在该线、点击位置两侧事件之间插入（时间取左右邻事件中值，保持先后顺序） */
 function onBoardClick(ev: MouseEvent): void {
   if (dragMoved || !store.current) return
   const target = ev.target as HTMLElement
@@ -657,9 +631,21 @@ function onBoardClick(ev: MouseEvent): void {
   const laneIdx = Math.round((y - LANE_BASE) / laneGap)
   const lane = lanes.value[laneIdx]
   if (!lane) return
-  const abs = absOfX(x)
   const cal = store.current.settings.calendars[0]
   if (!cal) return
+  const r = rankAtX(x)
+  const cal2 = store.current.settings.calendars
+  const merged = [...lane.view.inherited, ...lane.view.own].sort(
+    (a, b) => (eventAbs(a, cal2) ?? 0) - (eventAbs(b, cal2) ?? 0),
+  )
+  let prevAbs: number | null = null
+  let nextAbs: number | null = null
+  for (const e of merged) {
+    const er = rankIndex.value.rank.get(e.id) ?? 0
+    if (er <= r) prevAbs = eventAbs(e, cal2)
+    else { nextAbs = eventAbs(e, cal2); break }
+  }
+  const abs = suggestInsertAbs(prevAbs, nextAbs, cal.unitYears)
   const value = Math.round((abs - cal.offset) / cal.unitYears)
   const e: TimelineEvent = {
     id: uuid(), worldlineId: lane.w.id,
@@ -800,15 +786,14 @@ onUnmounted(() => resizeObs?.disconnect())
 .board { flex: 1; min-width: 0; overflow: hidden; position: relative; cursor: grab; background: var(--surface); }
 .board:active { cursor: grabbing; }
 .axis-svg { display: block; }
-.tick-line { stroke: var(--border-weak); stroke-width: 1; }
-.tick-text { fill: var(--text-3); font-size: 10px; text-anchor: middle; }
 .lane-name { font-size: 12px; font-weight: 500; }
 .event circle { cursor: pointer; stroke: var(--surface); stroke-width: 2; }
 .event circle.locked { stroke: var(--accent); stroke-width: 2.5; }
 .event.inherited circle { cursor: pointer; }
 .event-label { fill: var(--text-1); font-size: 12px; pointer-events: none; }
 .event-label.dim { fill: var(--text-3); }
-.event-meta { fill: var(--text-3); font-size: 10px; pointer-events: none; }
+.event-time { fill: var(--text-3); font-size: 10px; pointer-events: none; }
+.event-time.dim { opacity: 0.7; }
 .event .hit { cursor: pointer; }
 .event.cluster circle { cursor: pointer; stroke: var(--surface); stroke-width: 2; }
 .event.cluster { cursor: pointer; }
