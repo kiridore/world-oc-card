@@ -80,6 +80,8 @@ const nodes = computed<Node[]>(() => {
     return {
       id: e.id,
       position: e.canvasPos ?? { x: Math.round(autoX), y: Math.round(autoY) },
+      // Vue Flow 默认节点类型渲染的是 label 字段（data 仅自定义模板可用），漏传会显示空白节点
+      label: e.title,
       data: { event: e, color },
       style: {},
     }

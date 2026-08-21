@@ -44,12 +44,14 @@ test('M4-F2/F3 世界线 fork：从事件创建 IF 线，轨道出现且继承�
   await expect(page.getByText('新事件').first()).toBeVisible()
 })
 
-test('M4 画布视图：节点渲染 + 未定时草稿入口', async ({ page }) => {
+test('M4 画布视图：节点渲染 + 事件名称显示 + 未定时草稿入口', async ({ page }) => {
   await freshProject(page, '画布验证')
   await page.goto('/#/timeline/canvas')
   await page.getByRole('button', { name: /新建草稿事件/ }).click()
   await page.waitForTimeout(900)
   await expect(page.locator('.vue-flow__node').first()).toBeVisible({ timeout: 5000 })
+  // 节点必须显示事件标题（Vue Flow 默认节点渲染 label 字段，漏传为空白节点）
+  await expect(page.locator('.vue-flow__node').first()).toContainText('草稿事件')
 })
 
 test('M5 图谱：G6 画布渲染 + 关系创建入口 + 类型过滤图例', async ({ page }) => {
@@ -259,19 +261,20 @@ test('M4 时间轴拖拽惯性：松手后继续滑行且无错误', async ({ pa
   const box = await board.boundingBox()
   const cx = box!.x + box!.width / 2
   const cy = box!.y + 130
-  // 快速拖拽释放：断言滑行（释放后圆点 x 仍在变化）
+  // 快速拖拽释放：断言滑行（释放后圆点 x 仍在变化）。
+  // 步进等待取小值且 up 紧跟最后一步——间隔过大时 flingVelocity 的 120ms 采样窗口截不到样本，负载下会抖成无滑行
   await page.mouse.move(cx + 60, cy)
   await page.mouse.down()
-  for (let i = 0; i < 6; i++) {
-    await page.mouse.move(cx + 60 - i * 18, cy, { steps: 1 })
-    await page.waitForTimeout(16)
+  for (let i = 0; i < 7; i++) {
+    await page.mouse.move(cx + 60 - i * 20, cy, { steps: 1 })
+    await page.waitForTimeout(10)
   }
   await page.mouse.up()
   const dot = page.locator('svg g.event circle:not(.hit)').first()
   const x1 = Number(await dot.getAttribute('cx'))
-  await page.waitForTimeout(120)
+  await page.waitForTimeout(150)
   const x2 = Number(await dot.getAttribute('cx'))
-  await page.waitForTimeout(500)
+  await page.waitForTimeout(800)
   const x3 = Number(await dot.getAttribute('cx'))
   // x1→x2：惯性滑行中；x2→x3：已停止（衰减完成）
   expect(Math.abs(x2 - x1)).toBeGreaterThan(1)
