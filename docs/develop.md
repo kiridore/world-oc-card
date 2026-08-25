@@ -21,7 +21,7 @@ src/
   utils/                纯函数（无 Vue 依赖，可单测）
     branchOrder(事件排序：软解析/重编号/徽标)/fork/integrity/template/markdown/mdExport/snapshot/colors/tokens/
     graphHolder(导出用 G6 实例)；fling(惯性)/zoom(缩放钳制) 已随 v3 序位轴移除删除
-e2e/                    Playwright（smoke / verification 13 / perf），三浏览器矩阵
+e2e/                    Playwright（smoke / verification 14 / perf），三浏览器矩阵
 scripts/check-tokens.mjs G10/G13 颜色纪律静态检查
 ```
 
@@ -114,7 +114,7 @@ npm run coverage       # 覆盖率（数据层/纯函数 ≥70% 门槛）
 npm run check:tokens   # 颜色纪律（阻塞）
 npm run lint           # 0 error / 8 条已知 warning
 npm run build          # vue-tsc --noEmit + vite build
-npx playwright test    # E2E：15 用例 × chromium/firefox/msedge = 45 执行（矩阵全过是发布前提）
+npx playwright test    # E2E：16 用例 × chromium/firefox/msedge = 48 执行（矩阵全过是发布前提）
 ```
 
 - 单测覆盖：schemas / storage（dexie 写钩子断言单记录写）/ zip 往返深比较 / migration / template / markdown / integrity 级联 / branchOrder（替代旧 calendar/timelineOrder）/ fork 继承语义 / colors 对比度 / mdExport / snapshot；

@@ -9,7 +9,7 @@
 | 证据源 | 结果 |
 |---|---|
 | 单元测试（Vitest） | **90/90 通过**（schemas / storage / migration / zip / template / markdown / integrity / branchOrder / fork / colors / export） |
-| E2E（Playwright，生产构建） | **45/45 通过**（smoke 1 + verification 13 + perf 1，× 3 浏览器） |
+| E2E（Playwright，生产构建） | **48/48 通过**（smoke 1 + verification 14 + perf 1，× 3 浏览器） |
 | 覆盖率（G8：数据层+纯函数） | lines：schemas 100% / storage 94% / utils 92%（≥70% ✓，全量 93%） |
 | token 静态检查（G10/G13） | 通过：双主题 token 齐全、chrome 饱和度 ≤40%、无白名单外颜色字面量 |
 | ESLint | 0 error（8 条 unused-vars 类 warning，已记录，符合 G2"warning 允许需记录"） |
@@ -126,7 +126,7 @@
 - ✅ G4 数据不丢失（防抖+visibilitychange/beforeunload flush+**刷新自动重开上次项目**；E2E G4 刷新后数据在）
 - ✅ G5 失效引用不崩溃（占位组件/巡检/测试多处断言）
 - ✅ G6 零 base64 内联（存储测试断言 `data:image` 计数 0）
-- ✅ G7 浏览器矩阵 **Chromium/Firefox/Edge 全过**（45/45，15 用例 × 3 浏览器）
+- ✅ G7 浏览器矩阵 **Chromium/Firefox/Edge 全过**（48/48，16 用例 × 3 浏览器）
 - ✅ G8 覆盖率 ≥70%（lines 88–100%；当前全量 93%，见总览表）
 - ✅ G9 双主题（E2E + 人工）
 - ✅ G10 无硬编码颜色/图标统一 Lucide（脚本扫描 + review）
@@ -180,6 +180,7 @@
 | v2.3.1 | 点阵跟随视口平移/缩放 | E2E `M5 点阵背景跟随`：滚轮缩放→CSS 变量变化断言，三浏览器 |
 | v2.3.2 | 关系连线曲线化；修复页内新建关系不重绘（deep watch + G6 增量路径绕行） | E2E `M5 页内新建关系曲线立即渲染`（截图字节比对）；视觉走查（弧线+标签） |
 | v2.3.3 | 修复聚簇「收起」按钮被拖拽 pointer capture 吞掉点击 | E2E `M4 同刻多事件` 补收起→回归→再展开断言，三浏览器 |
+| **v3.1.0** | **泳道连线增强**：同线节点背骨实线串联、分叉相对定位（IF 首卡对齐锚点卡横/纵起缘）、横向统一横滚（lane-cards 去独立 overflow） | 单测 **90/90**；E2E **48/48**（smoke 1 + verification 14 + perf 1 ×3 浏览器）；build/lint/tokens 全绿；泳道连线断言（背骨计数/fork 曲线/偏移 ±2px/滚动模型）三浏览器 |
 | **v3.0.0** | **时间线 v3 重构（破坏性 schemaVersion 2→3）**：字符串纪年双模式时间、世界线内软解析+手动排序（rank 真源）、泳道式卡片视图（横/纵 + 顶部草稿箱）、移除因果连线/画布视图/历法实体/序位轴交互；可选字段变更为参与者（含势力）与通用百科关联 | 单测 **90/90**；E2E **45/45**（smoke 1 + verification 13 + perf 1 ×3 浏览器）；覆盖率 lines 93%；build/lint/tokens 全绿；perf：open 374ms / 时间轴 1000 卡片 5 线 138ms |
 
 ### 迭代期缺陷修复记录（择要）

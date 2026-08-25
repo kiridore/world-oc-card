@@ -54,6 +54,62 @@ test('M4-F2/F3 世界线 fork：草稿补时间入线后从此处创建 IF 线�
   await page.keyboard.press('Escape')
 })
 
+test('M4 泳道背骨线 + 分叉相对定位 + 统一横滚', async ({ page }) => {
+  await freshProject(page, '泳道连线验证')
+  await page.goto('/#/timeline')
+  // 主干 2 卡 → 1 条背骨
+  await addTimedEvent(page, '217')
+  await addTimedEvent(page, '300')
+  await expect(page.locator('.fork-overlay path.backbone')).toHaveCount(1)
+  // fork：从第一张卡创建 IF 线
+  await page.locator('.lane .lane-cards .card').first().click()
+  await page.getByRole('button', { name: /从此处创建 IF 线/ }).click()
+  await page.getByRole('dialog').getByRole('button', { name: '创建', exact: true }).click()
+  await expect(page.locator('.lane')).toHaveCount(2, { timeout: 5000 })
+  await page.keyboard.press('Escape')
+  // IF 线加两张卡：草稿 → 世界线下拉选第二条线 → 纪年法保存（重复两次）
+  async function addToIfLane(year: string): Promise<void> {
+    await page.getByRole('button', { name: /新建草稿事件/ }).click()
+    await page.getByText('纪年法', { exact: true }).first().click()
+    await page.getByPlaceholder('年').fill(year)
+    await page.locator('.row', { hasText: '世界线' }).locator('.n-select').first().click()
+    await page.locator('.n-base-select-option').nth(1).click()
+    await page.getByRole('button', { name: '保存', exact: true }).click()
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(300)
+  }
+  await addToIfLane('1')
+  await addToIfLane('2')
+  // IF 卡入泳道：背骨 2 条（主干 2 卡 1 条 + IF 线 2 卡 1 条）、fork 曲线 1 条
+  await expect(page.locator('.fork-overlay path.backbone')).toHaveCount(2)
+  await expect(page.locator('.fork-overlay path.fork')).toHaveCount(1)
+  // 分叉对齐（横）：IF 首卡 paddingLeft ≈ 锚点卡内容 x
+  const anchorX = await page.locator('.lane').first().locator('.lane-cards .card').first().evaluate((el) => {
+    const lanes = document.querySelector('.lanes')!
+    const lr = lanes.getBoundingClientRect()
+    return el.getBoundingClientRect().left - lr.left + lanes.scrollLeft
+  })
+  const ifPadding = await page.locator('.lane').nth(1).locator('.lane-cards').evaluate(
+    (el) => parseFloat(getComputedStyle(el).paddingLeft),
+  )
+  expect(Math.abs(ifPadding - anchorX)).toBeLessThanOrEqual(2)
+  // 统一横滚：横向模式下 lane-cards 无独立 overflow-x
+  const ox = await page.locator('.lane-cards').first().evaluate((el) => getComputedStyle(el).overflowX)
+  expect(ox).not.toBe('auto')
+  // 纵向模式：padding 改 paddingTop 对齐
+  await page.getByRole('button', { name: /切换到纵向/ }).click()
+  await page.waitForTimeout(300)
+  const anchorY = await page.locator('.lane').first().locator('.lane-cards .card').first().evaluate((el) => {
+    const lanes = document.querySelector('.lanes')!
+    const lr = lanes.getBoundingClientRect()
+    return el.getBoundingClientRect().top - lr.top + lanes.scrollTop
+  })
+  const ifTop = await page.locator('.lane').nth(1).locator('.lane-cards').evaluate(
+    (el) => parseFloat(getComputedStyle(el).paddingTop),
+  )
+  expect(Math.abs(ifTop - anchorY)).toBeLessThanOrEqual(2)
+})
+
 test('M4-E3 草稿箱：未定时进箱不进泳道；补时间入线；放回箱', async ({ page }) => {
   await freshProject(page, '草稿箱验证')
   await page.goto('/#/timeline')

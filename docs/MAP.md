@@ -38,7 +38,7 @@ world-oc-card/
 ├── package.json             # 版本唯一出处（应用内版本号读它）；依赖见 KNOWLEDGE_BASE §1
 ├── src/                     # 全部业务代码（~5800 行）
 ├── tests/                   # Vitest 单测（90 个，node + fake-indexeddb）
-├── e2e/                     # Playwright（smoke 1 + verification 13 + perf 1 = 15 用例 ×3 浏览器）
+├── e2e/                     # Playwright（smoke 1 + verification 14 + perf 1 = 16 用例 ×3 浏览器）
 ├── scripts/check-tokens.mjs # G10/G13 颜色纪律静态检查（阻塞门禁）
 ├── docs/                    # 本文档体系
 ├── public/favicon.svg       # 石纹标识
@@ -170,7 +170,7 @@ utils/（纯函数，无 Vue 依赖，全部可单测）
 | `colors.test.ts` | G11、M4-S1、M3-S1 | 调色板双主题对比度 ≥3:1 |
 | `export.test.ts` | M6-F2/F4/E1 | 角色 Markdown 全块、HTML 快照（零外链/体积/占位） |
 
-### 4.2 E2E（e2e/，15 用例 × Chromium/Firefox/Edge = 45 执行）
+### 4.2 E2E（e2e/，16 用例 × Chromium/Firefox/Edge = 48 执行）
 
 | 文件 | 用例 | 覆盖 |
 |------|------|------|
@@ -187,7 +187,7 @@ utils/（纯函数，无 Vue 依赖，全部可单测）
 | `npm run check:tokens` | 阻塞 | 双主题 token 齐全、chrome 饱和度 ≤40%、**白名单外零颜色字面量** |
 | `npm run lint` | 0 error（8 已知 warning） | scripts/e2e 忽略 |
 | `npm run build` | vue-tsc 0 错误 | 类型错误即失败 |
-| `npx playwright test` | 45/45 | 需先 build；preview 起在 4173；改动后杀旧 4173 进程 |
+| `npx playwright test` | 48/48 | 需先 build；preview 起在 4173；改动后杀旧 4173 进程 |
 
 ---
 

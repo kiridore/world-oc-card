@@ -164,7 +164,10 @@
               分叉点失效
             </n-tag>
           </div>
-          <div class="lane-cards" :style="laneOffsetStyle(l.wl.id)">
+          <div
+            class="lane-cards"
+            :style="laneOffsetStyle(l.wl.id)"
+          >
             <n-empty
               v-if="branchEvents(l.wl.id).length === 0"
               size="small"
