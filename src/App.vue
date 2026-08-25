@@ -34,13 +34,6 @@
               <span class="ver">v{{ version }}</span>
               <button
                 class="foot-btn"
-                title="完整性巡检（失效引用 / 孤儿资产）"
-                @click="showIntegrity = true"
-              >
-                <ShieldCheck :size="14" /> 巡检
-              </button>
-              <button
-                class="foot-btn"
                 title="快捷键帮助（?）"
                 @click="showHelp = true"
               >
@@ -56,7 +49,6 @@
             <RouterView />
           </main>
         </div>
-        <IntegrityDrawer v-model:show="showIntegrity" />
         <n-modal
           v-model:show="showHelp"
           preset="dialog"
@@ -81,13 +73,12 @@
 import { computed, ref, onMounted, type Component } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { darkTheme, zhCN, dateZhCN, NModal, NConfigProvider, NDialogProvider, NMessageProvider } from 'naive-ui'
-import { ShieldCheck, Keyboard } from 'lucide-vue-next'
+import { Keyboard } from 'lucide-vue-next'
 import * as icons from 'lucide-vue-next'
 import { useThemeStore } from '@/stores/theme'
 import { reopenLastProject } from '@/stores/project'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import MarbleBackground from '@/components/MarbleBackground.vue'
-import IntegrityDrawer from '@/components/IntegrityDrawer.vue'
 import { useShortcuts, SHORTCUT_HELP } from '@/composables/useShortcuts'
 import pkg from '../package.json'
 
@@ -95,7 +86,6 @@ const version = pkg.version
 
 const theme = useThemeStore()
 const isDark = computed(() => theme.isDark)
-const showIntegrity = ref(false)
 const showHelp = ref(false)
 useShortcuts(() => { showHelp.value = true })
 // G4：启动时自动重开上次项目，刷新后各页面直接可用

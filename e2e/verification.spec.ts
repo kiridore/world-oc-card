@@ -382,9 +382,10 @@ test('M7-E1 子路由刷新不 404（hash 路由）', async ({ page }) => {
   await expect(page.locator('.graph-wrap')).toBeVisible({ timeout: 8000 })
 })
 
-test('M7 巡检面板打开显示健康状态', async ({ page }) => {
+test('M7 巡检面板：导出页工具区打开显示健康状态', async ({ page }) => {
   await freshProject(page, '巡检验证')
-  await page.getByTitle('完整性巡检（失效引用 / 孤儿资产）').click()
+  await page.goto('/#/export')
+  await page.getByRole('button', { name: /打开巡检/ }).click()
   await expect(page.getByText(/全部健康|未发现失效引用/).first()).toBeVisible({ timeout: 5000 })
 })
 

@@ -93,16 +93,33 @@
           PNG 按当前主题导出（含冷灰大理石质感）。
         </p>
       </section>
+
+      <section class="panel card">
+        <div class="card-head">
+          <h3><ShieldCheck :size="16" /> 完整性巡检</h3>
+          <n-button
+            size="small"
+            @click="showIntegrity = true"
+          >
+            打开巡检
+          </n-button>
+        </div>
+        <p class="desc">
+          扫描全部失效引用与孤儿资产（事件 / 关系 / 世界线 / 字段链接），定位损坏数据来源。
+        </p>
+      </section>
     </div>
   </EmptyProject>
+  <IntegrityDrawer v-model:show="showIntegrity" />
 </template>
 
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { NButton, NSelect, useMessage } from 'naive-ui'
-import { Archive, FileText, Share2, ImageDown } from 'lucide-vue-next'
+import { Archive, FileText, Share2, ImageDown, ShieldCheck } from 'lucide-vue-next'
 import EmptyProject from '@/components/EmptyProject.vue'
+import IntegrityDrawer from '@/components/IntegrityDrawer.vue'
 import { useProjectStore } from '@/stores/project'
 import { projectToMarkdown, characterToMarkdown } from '@/utils/mdExport'
 import { buildSnapshotHtml, type SnapshotAsset } from '@/utils/snapshot'
@@ -110,6 +127,7 @@ import { getGraphInstance } from '@/utils/graphHolder'
 import { downloadBlob, downloadText } from '@/utils/download'
 
 const store = useProjectStore()
+const showIntegrity = ref(false)
 const router = useRouter()
 const message = useMessage()
 
