@@ -38,7 +38,7 @@ world-oc-card/
 ├── package.json             # 版本唯一出处（应用内版本号读它）；依赖见 KNOWLEDGE_BASE §1
 ├── src/                     # 全部业务代码（~5800 行）
 ├── tests/                   # Vitest 单测（91 个，node + fake-indexeddb）
-├── e2e/                     # Playwright（smoke 1 + verification 14 + perf 1 = 16 用例 ×3 浏览器）
+├── e2e/                     # Playwright（smoke 1 + verification 13 + perf 1 = 15 用例 ×3 浏览器）
 ├── scripts/check-tokens.mjs # G10/G13 颜色纪律静态检查（阻塞门禁）
 ├── docs/                    # 本文档体系
 ├── public/favicon.svg       # 石纹标识
@@ -95,11 +95,12 @@ utils/（纯函数，无 Vue 依赖，全部可单测）
 
 | 文件 | 职责 | 关联验收 |
 |------|------|----------|
-| `calendar.ts` | 历法线性换算 | 绝对纪元 = value×unitYears+offset；M4-F6 |
-| `fork.ts` | 世界线 fork 继承语义 | `visibleEventsFor()` 子线可见事件集合；fork 点失效容错；M4-F3/F4/E2 |
-| `timelineOrder.ts` | 事件序位轴（dense rank） | 同刻共享序位；`suggestInsertAbs` 中值插入；v1.5.0 |
-| `fling.ts` | 惯性滑动速度估算 | 120ms 窗口样本；τ=180ms 上限 2.5px/ms；v2.2.0 |
-| `zoom.ts` | 缩放尺度钳制 | MIN_SPAN 0.05 / 全景外扩两格；G14 |
+| `calendar.ts` | ~~历法线性换算~~（v3 已移除） | 绝对纪元 = value×unitYears+offset；M4-F6 ~~（v3 去数值纪年，文件已删）~~ |
+| `fork.ts` | 世界线 fork 继承语义 | `visibleEventsFor()` 子线可见事件集合；fork 点失效容错；M4-F3/F4/E2（v3：继承边界改按线内 rank） |
+| `timelineOrder.ts` | ~~事件序位轴（dense rank）~~（v3 已移除） | ~~同刻共享序位；suggestInsertAbs 中值插入~~；文件已删 |
+| `branchOrder.ts` | 事件排序纯函数（v3，字符串纪年） | `parseStatus`（可解析性）/`displayTime`/`insertIndex`/`applyOrder`（重编号）/`badgeFor`（待排序/手动序/历法转接徽标）；M4 |
+| `fling.ts` | ~~惯性滑动速度估算~~（v3 序位轴移除，文件未引用） | 120ms 窗口样本；τ=180ms 上限 2.5px/ms（留待清理） |
+| `zoom.ts` | ~~缩放尺度钳制~~（v3 序位轴移除，文件未引用） | MIN_SPAN 0.05 / 全景外扩两格（留待清理） |
 | `integrity.ts` | 引用完整性：删除前扫描/级联/巡检/孤儿资产 | `characterReferences/codexReferences/eventReferences`；`remove*Cascade`；`scanBrokenReferences`；`findOrphanAssets`；M2-E1/M3-E2/M4-E1/E2/M7-F1/F2 |
 | `markdown.ts` | Markdown 渲染 + `[[条目名]]` 双向链接 | `preprocessCodexLinks`（含失效引用占位）；marked |
 | `template.ts` | 模板纯逻辑 | stripBlockValues（结构剥离）/insertTemplateBlocks/serialize+parseTemplateFile/全文搜索/标签收集 |
@@ -112,17 +113,18 @@ utils/（纯函数，无 Vue 依赖，全部可单测）
 | `graphHolder.ts` | 跨视图共享 G6 实例 | 导出中心 toDataURL 用 |
 | `id.ts` / `download.ts` | uuid/nowIso；下载/上传辅助 | — |
 
-### 3.5 视图层（views/，7 路由）
+### 3.5 视图层（views/，6 路由）
 
 | 视图 | 路由 | 职责/要点 |
 |------|------|-----------|
 | `HomeView.vue` | `/` | 项目列表（新建/导入 zip/重命名/删除/打开）；错落入场动画 |
 | `CharactersView.vue` | `/characters` | 角色列表（全文搜索/标签筛选）；**新建即编辑** + 输入停顿 800ms 自动保存 + 提示节流；跳转自图谱 `?id=` |
 | `CodexView.vue` | `/codex` | 条目 CRUD、类型侧栏（内置 6 + 自定义）、`[[链接]]` 渲染+反向引用、属性模板、颜色选择 |
-| `TimelineView.vue` | `/timeline` | **自研 SVG 时间轴**（~900 行）：序位轴、轨道+fork 曲线、聚簇展开/收起、缩放平移+惯性、序位网格竖线、侧栏草稿/全部事件列表、轨道插入、废弃线折叠、编辑抽屉 |
-| `CanvasView.vue` | `/timeline/canvas` | Vue Flow 画布：拖拽节点（canvasPos 自动保存）、连线（causalLinks）、未定时草稿入口 |
+| `TimelineView.vue` | `/timeline` | **泳道式卡片时间线（v3）**：世界线泳道（fork 曲线 SVG 覆盖层）、横/纵双模式切换（PC 默认横 / 移动端默认纵）、顶部草稿箱、排序徽标、线内拖拽重排（HTML5 DnD）、废弃线折叠、编辑抽屉 |
 | `GraphView.vue` | `/graph` | G6 图谱：力导向、曲线边、类型管理（箭头三态）、边创建/编辑、类型过滤图例、点阵背景跟随、lastRenderKey 指纹 |
 | `ExportView.vue` | `/export` | 导出中心：zip / 角色 MD / PNG（角色卡/图谱/时间轴）/ 单文件 HTML 快照 |
+
+> v3 已移除：`CanvasView`（画布视图）、`/timeline/canvas` 路由、Vue Flow 依赖、SVG 序位轴（缩放/平移/惯性/聚簇/序位网格）交互。
 
 ### 3.6 组件层（components/）
 
@@ -131,7 +133,8 @@ utils/（纯函数，无 Vue 依赖，全部可单测）
 | `EmptyProject.vue` | 未打开项目时多根片段的兜底占位（**不能包 Transition**，坑 2） |
 | `blocks/BlockEditor.vue` | 七种字段块编辑器（~400 行）；模板里用 `kv()/txt()` 类型 cast 辅助（坑 3） |
 | `blocks/BlockView.vue` | 角色卡只读渲染（衬线正文 16px/1.75） |
-| `timeline/EventDrawer.vue` | 事件编辑抽屉（全字段 + 未定时/锁定时态） |
+| `timeline/EventDrawer.vue` | 事件编辑抽屉（双模式时间 `EventTimeEditor`、世界线选择、参与者〔角色/势力〕、关联百科、放回草稿箱、fork/删除） |
+| `timeline/EventTimeEditor.vue` | 时间双模式表单（未定时/纪年法四段/自定义自由文本，全字符串） |
 | `TemplateManager.vue` / `TemplatePicker.vue` | 模板管理抽屉（重命名/删除/排序）/ 新建模板选择弹窗 |
 | `IntegrityDrawer.vue` | 巡检面板（失效引用列表 + 跳转 + 孤儿资产清理） |
 | `AssetImage.vue` | 资产图片渲染（objectURL 缓存，失效引用占位） |
@@ -160,20 +163,20 @@ utils/（纯函数，无 Vue 依赖，全部可单测）
 | `template.test.ts` | M2-F5/F6/F8/F3/F4/D1 | 模板结构剥离/插入/文件往返/全文搜索/标签 |
 | `integrity.test.ts` | M2-E1、M3-E2/E1、M4-E1/E2、M7-F1/F2 | 引用扫描与级联删除、名称唯一、巡检、孤儿资产 |
 | `markdown.test.ts` | M3-F2、M3-D1 | `[[链接]]` 双向解析 |
-| `calendar.test.ts` | M4-F6 | 历法线性换算排序 |
-| `fork.test.ts` | M4-F3/F4/E2/D1 | fork 继承语义、多级分叉、分叉点失效容错 |
-| `zoom.test.ts` | G14、v1.5.0 | 缩放钳制、序位轴 dense rank、中值插入 |
-| `fling.test.ts` | v2.2.0 | 惯性速度估算 |
+| `branchOrder.test.ts` | M4（v3 字符串纪年排序） | 可解析判定/展示文本/插入位/重编号/徽标派生（含历法转接） |
+| `fork.test.ts` | M4-F3/F4/E2/D1 | fork 继承语义（v3 rank 边界）、多级分叉、分叉点失效容错 |
+| `zoom.test.ts` | G14、v1.5.0 | 缩放钳制（序位轴交互 v3 已移除，仅保留 clampSpan 纯函数） |
+| `fling.test.ts` | v2.2.0 | 惯性速度估算（v3 序位轴移除，留待清理） |
 | `colors.test.ts` | G11、M4-S1、M3-S1 | 调色板双主题对比度 ≥3:1 |
 | `export.test.ts` | M6-F2/F4/E1 | 角色 Markdown 全块、HTML 快照（零外链/体积/占位） |
 
-### 4.2 E2E（e2e/，16 用例 × Chromium/Firefox/Edge = 48 执行）
+### 4.2 E2E（e2e/，15 用例 × Chromium/Firefox/Edge = 45 执行）
 
 | 文件 | 用例 | 覆盖 |
 |------|------|------|
-| `smoke.spec.ts` | 主链路冒烟 | 新建项目→模板建角色→百科互链→建事件→fork→导出 zip |
-| `verification.spec.ts` | 14 个功能验收 | G9 双主题 / G4 持久化 / G2 控制台 / M4 fork / 画布 / 聚簇 / 缩放限制 / 惯性 / M5 图谱渲染 / 页内建关系曲线 / 点阵跟随 / M6 快照 / M7-E1 子路由 / M7 巡检 |
-| `perf.spec.ts` | 大规模数据 | 打开 <1s、时间轴渲染 <2s、交互可用 |
+| `smoke.spec.ts` | 主链路冒烟 | 新建项目→模板建角色→时间线建草稿补时间入列→横纵切换→导出 zip |
+| `verification.spec.ts` | 13 个功能验收 | G9 双主题 / G4 持久化 / G2 控制台 / M4 fork / M4-E3 草稿箱（进出+放回）/ M4-F8 横纵切换 / M4 线内 DnD 重排 / M5 图谱渲染 / 页内建关系曲线 / 点阵跟随 / M6 快照 / M7-E1 子路由 / M7 巡检 |
+| `perf.spec.ts` | 大规模数据 | 打开 <1s、时间轴（1000 事件卡片泳道）渲染 <2s |
 
 ### 4.3 质量门禁命令
 
@@ -194,7 +197,7 @@ utils/（纯函数，无 Vue 依赖，全部可单测）
 |--------|------|----------|
 | M0–M7 | 里程碑验收（F 功能/E 边界/P 性能/D 数据/S 风格） | DEV_PLAN §3（详述）→ RELEASE.md（✅ 证据） |
 | G1–G13 | 全局标准（生产验收/控制台/中文/数据不丢/失效容错/无 base64/浏览器矩阵/测试/双主题/颜色纪律/对比度/字体/低饱和） | DEV_PLAN §2 → RELEASE.md「全局标准」 |
-| G14–G16 | 迭代期全局标准（缩放限制/聚簇可交互/图谱即时重绘） | DEV_PLAN 附录 B → RELEASE.md 附录 B |
+| G14–G16 | 迭代期全局标准（~~缩放限制/聚簇可交互~~ v3 序位轴移除 / 图谱即时重绘） | DEV_PLAN 附录 B → RELEASE.md 附录 B |
 | A1–A9 | 设计决策记录 | DESIGN.md 附录 A |
 
 ---

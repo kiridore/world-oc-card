@@ -1,6 +1,9 @@
 <template>
   <EmptyProject>
-    <div class="page timeline">
+    <div
+      class="page timeline"
+      :class="orientation"
+    >
       <!-- 顶栏：世界线管理 -->
       <div class="wl-bar panel">
         <div class="wl-chips">

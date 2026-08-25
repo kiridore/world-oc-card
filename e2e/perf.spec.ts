@@ -21,10 +21,9 @@ test('大规模数据：项目打开 <1s、时间轴渲染 <2s、交互可用', 
     const pid = 'perf-project-1'
     const now = new Date().toISOString()
     const palette = ['#7d9cb5', '#8fae8b', '#c2917f', '#a292c0', '#c0a97e']
-    await put('projects', { id: pid, name: '性能演练', schemaVersion: 1, createdAt: now, updatedAt: now })
+    await put('projects', { id: pid, name: '性能演练', schemaVersion: 3, createdAt: now, updatedAt: now })
     await put('settings', {
       projectId: pid,
-      calendars: [{ id: 'cal1', name: '通用纪年', offset: 0, unitYears: 1 }],
       relationTypes: [{ id: 'rt1', name: '亲属', color: palette[0], arrow: 'none' }],
       codexTypes: [{ id: 'ct1', key: 'location', name: '地点' }],
       worldlines: Array.from({ length: 5 }, (_, i) => ({
@@ -49,9 +48,9 @@ test('大规模数据：项目打开 <1s、时间轴渲染 <2s、交互可用', 
     for (let i = 0; i < 1000; i++) {
       evStore.put({
         id: i === 0 ? 'ev0' : `ev${i}`, projectId: pid, worldlineId: `w${i % 5}`,
-        time: { calendarId: 'cal1', value: i, display: `纪元 ${i} 年` },
-        title: `事件${i}`, description: '', participantIds: [`ch${i % 200}`], locationId: null,
-        causalLinks: [], collapsed: false, locked: false,
+        time: { mode: 'calendar', era: '通用纪年', year: String(i), month: '', day: '' },
+        title: `事件${i}`, description: '', participantIds: [`ch${i % 200}`], relatedCodexIds: [],
+        rank: Math.floor(i / 5), manualPlaced: false, collapsed: false, locked: false,
       })
     }
     await new Promise<void>((res) => { evTx.oncomplete = () => res() })
@@ -66,25 +65,17 @@ test('大规模数据：项目打开 <1s、时间轴渲染 <2s、交互可用', 
   const openMs = Date.now() - t0
   console.log(`PERF open project: ${openMs}ms (budget <1000ms 含导航)`)
 
-  // M4-P1：时间轴渲染 1000 事件 + 5 世界线
+  // M4-P1：时间轴渲染 1000 事件 + 5 世界线（泳道卡片）
   const t1 = Date.now()
   await page.goto('/#/timeline')
-  await page.locator('svg .event').first().waitFor({ timeout: 10000 })
-  await page.locator('svg circle').nth(50).waitFor({ timeout: 5000 })
+  await page.locator('.lane-cards .card').first().waitFor({ timeout: 15000 })
+  await page.locator('.lane-cards .card').nth(50).waitFor({ timeout: 5000 })
   const renderMs = Date.now() - t1
-  const laneCount = await page.locator('svg .lane-name').count()
-  const eventCount = await page.locator('svg g.event').count()
+  const laneCount = await page.locator('.lane').count()
+  const eventCount = await page.locator('.lane-cards .card').count()
   console.log(`PERF timeline render: ${renderMs}ms (budget <2000ms) lanes=${laneCount} events=${eventCount}`)
   expect(eventCount).toBeGreaterThan(900)
   expect(laneCount).toBe(5)
   expect(openMs).toBeLessThan(3000) // E2E 含点击与路由，宽松于 AC 的纯数据口径（AC 数值由单测 M1-P1 覆盖）
   expect(renderMs).toBeLessThan(4000)
-
-  // 画布：500+ 节点加载（全部 1000 事件进画布）
-  const t2 = Date.now()
-  await page.goto('/#/timeline/canvas')
-  await page.locator('.vue-flow__node').nth(20).waitFor({ timeout: 15000 })
-  const canvasMs = Date.now() - t2
-  console.log(`PERF canvas load: ${canvasMs}ms`)
-  expect(canvasMs).toBeLessThan(10000)
 })

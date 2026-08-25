@@ -1,4 +1,4 @@
-// E2E 功能验收（生产构建）：G9 双主题 / G4 持久化 / M4 fork / 画布 / M5 图谱 / M6 快照 / M7-E1 刷新
+// E2E 功能验收（生产构建）：G9 双主题 / G4 持久化 / M4 fork / M4-E3 草稿箱 / M4-F8 横纵 / M4 DnD 重排 / M5 图谱 / M6 快照 / M7-E1 刷新
 import { test, expect } from '@playwright/test'
 
 async function freshProject(page: import('@playwright/test').Page, name: string): Promise<void> {
@@ -7,6 +7,16 @@ async function freshProject(page: import('@playwright/test').Page, name: string)
   await page.getByPlaceholder('项目名称，如：星陨大陆').fill(name)
   await page.getByRole('button', { name: '创建', exact: true }).click()
   await expect(page.getByRole('button', { name: /新建角色/ }).first()).toBeVisible({ timeout: 10000 })
+}
+
+/** 在时间线点「新建草稿事件」打开抽屉，填纪年法年字段并保存 → 关闭抽屉（保存后抽屉保持打开，其 mask 会拦截后续点击）*/
+async function addTimedEvent(page: import('@playwright/test').Page, year: string): Promise<void> {
+  await page.getByRole('button', { name: /新建草稿事件/ }).click()
+  await page.getByText('纪年法', { exact: true }).first().click()
+  await page.getByPlaceholder('年').fill(year)
+  await page.getByRole('button', { name: '保存', exact: true }).click()
+  await page.keyboard.press('Escape') // 关抽屉
+  await page.waitForTimeout(300)
 }
 
 test('G9 双主题：切换即时生效并持久化，跟随系统偏好', async ({ browser }) => {
@@ -29,29 +39,82 @@ test('G9 双主题：切换即时生效并持久化，跟随系统偏好', async
   await lightCtx.close()
 })
 
-test('M4-F2/F3 世界线 fork：从事件创建 IF 线，轨道出现且继承展示', async ({ page }) => {
+test('M4-F2/F3 世界线 fork：草稿补时间入线后从此处创建 IF 线，新泳道出现', async ({ page }) => {
   await freshProject(page, 'Fork 验证')
   await page.goto('/#/timeline')
-  await page.getByRole('button', { name: /新建事件/ }).click()
-  await page.getByRole('button', { name: '创建并编辑' }).click()
-  await page.waitForTimeout(500)
-  // 抽屉里「从此处创建 IF 线」
+  await addTimedEvent(page, '217')
+  await expect(page.locator('.lane')).toHaveCount(1)
+  // 打开卡片 → 抽屉 → 从此处创建 IF 线
+  await page.locator('.lane .lane-cards .card').first().click()
   await page.getByRole('button', { name: /从此处创建 IF 线/ }).click()
-  await page.getByRole('button', { name: '创建', exact: true }).click()
-  await page.waitForTimeout(800)
-  // 世界线 chips 出现 IF 线 + 主线事件文本渲染在轨道（继承）
-  await expect(page.getByText(/IF 线/).first()).toBeVisible()
-  await expect(page.getByText('新事件').first()).toBeVisible()
+  await page.getByRole('dialog').getByRole('button', { name: '创建', exact: true }).click()
+  // 新泳道 + IF 标识出现
+  await expect(page.locator('.lane')).toHaveCount(2, { timeout: 5000 })
+  await expect(page.locator('.lane-name').filter({ hasText: 'IF' }).first()).toBeVisible()
+  await page.keyboard.press('Escape')
 })
 
-test('M4 画布视图：节点渲染 + 事件名称显示 + 未定时草稿入口', async ({ page }) => {
-  await freshProject(page, '画布验证')
-  await page.goto('/#/timeline/canvas')
+test('M4-E3 草稿箱：未定时进箱不进泳道；补时间入线；放回箱', async ({ page }) => {
+  await freshProject(page, '草稿箱验证')
+  await page.goto('/#/timeline')
+  // 未定时草稿 → 草稿箱内、泳道无
   await page.getByRole('button', { name: /新建草稿事件/ }).click()
-  await page.waitForTimeout(900)
-  await expect(page.locator('.vue-flow__node').first()).toBeVisible({ timeout: 5000 })
-  // 节点必须显示事件标题（Vue Flow 默认节点渲染 label 字段，漏传为空白节点）
-  await expect(page.locator('.vue-flow__node').first()).toContainText('草稿事件')
+  await expect(page.locator('.draft-box .card.draft')).toHaveCount(1)
+  await expect(page.locator('.lane-cards .card')).toHaveCount(0)
+  await page.keyboard.press('Escape') // 关闭抽屉，草稿保留
+  await page.waitForTimeout(300)
+  // 放回操作经抽屉二次打开 → 补时间入线
+  await page.locator('.draft-box .card.draft').first().click()
+  await page.getByText('纪年法', { exact: true }).first().click()
+  await page.getByPlaceholder('年').fill('9')
+  await page.getByRole('button', { name: '保存', exact: true }).click()
+  await page.keyboard.press('Escape') // 保存后抽屉保持打开，先关闭再断言泳道
+  await expect(page.locator('.lane-cards .card')).toHaveCount(1, { timeout: 5000 })
+  await expect(page.locator('.draft-box .card.draft')).toHaveCount(0)
+  // 已定时 → 放回草稿箱 → 回箱、出土泳道
+  await page.locator('.lane-cards .card').first().click()
+  await page.getByRole('button', { name: /放回草稿箱/ }).click()
+  await expect(page.locator('.draft-box .card.draft')).toHaveCount(1, { timeout: 5000 })
+  await expect(page.locator('.lane-cards .card')).toHaveCount(0)
+})
+
+test('M4-F8 线内拖拽重排：HTML5 DnD 后卡片顺序交换并持久', async ({ page }) => {
+  await freshProject(page, 'DnD 验证')
+  await page.goto('/#/timeline')
+  await addTimedEvent(page, '1')
+  await addTimedEvent(page, '2')
+  await expect(page.locator('.lane-cards .card')).toHaveCount(2)
+
+  const eids = async () => page.locator('.lane-cards .card').evaluateAll(
+    (els) => els.map((e) => e.getAttribute('data-eid')),
+  )
+  const before = await eids()
+  expect(before).toHaveLength(2)
+
+  // 把第 2 张卡拖到第 1 张卡上（dataTransfer 驱动；普通 DOM 卡，不涉及 G6 拖拽兼容坑）
+  const dt = await page.evaluateHandle(() => new DataTransfer())
+  const cards = page.locator('.lane-cards .card')
+  await cards.nth(1).dispatchEvent('dragstart', { dataTransfer: dt })
+  await cards.nth(0).dispatchEvent('drop', { dataTransfer: dt })
+  await cards.nth(0).dispatchEvent('dragover', { dataTransfer: dt })
+  await cards.nth(1).dispatchEvent('dragend', { dataTransfer: dt })
+  await page.waitForTimeout(300)
+
+  const after = await eids()
+  expect(after).toEqual([before[1], before[0]])
+})
+
+test('M4-F8 横纵切换：class h↔v 翻转并 localStorage 持久化', async ({ page }) => {
+  await freshProject(page, '横纵验证')
+  await page.goto('/#/timeline')
+  const root = page.locator('.page.timeline')
+  await expect(root).toHaveClass(/h/)
+  await page.getByRole('button', { name: /切换到纵向/ }).click()
+  await expect(root).toHaveClass(/v/)
+  await page.reload()
+  await expect(root).toHaveClass(/v/) // localStorage 优先于默认识别
+  await page.getByRole('button', { name: /切换到横向/ }).click()
+  await expect(root).toHaveClass(/h/)
 })
 
 test('M5 图谱：G6 画布渲染 + 关系创建入口 + 类型过滤图例', async ({ page }) => {
@@ -174,112 +237,12 @@ test('M7-E1 子路由刷新不 404（hash 路由）', async ({ page }) => {
   await page.goto('/#/codex')
   await page.reload()
   await expect(page.getByRole('button', { name: /新建条目/ }).first()).toBeVisible({ timeout: 8000 })
-  await page.goto('/#/timeline/canvas')
+  await page.goto('/#/timeline')
   await page.reload()
-  await expect(page.getByRole('button', { name: /新建草稿事件/ }).first()).toBeVisible({ timeout: 8000 })
-})
-
-test('M4 同刻多事件：折叠聚合点（×N）点击展开，轨道首行不被顶部遮挡', async ({ page }) => {
-  await freshProject(page, '聚合点验证')
-  await page.goto('/#/timeline')
-  // 两个同刻事件（默认时间 0）
-  for (let i = 0; i < 2; i++) {
-    await page.getByRole('button', { name: /新建事件/ }).click()
-    await page.getByRole('button', { name: '创建并编辑' }).click()
-    await page.waitForTimeout(400)
-    await page.keyboard.press('Escape')
-    await page.waitForTimeout(200)
-  }
-  // 侧栏分组列表（可靠选中入口）
-  await expect(page.getByText(/主世界线（2）/)).toBeVisible({ timeout: 5000 })
-  await expect(page.locator('.ev-row')).toHaveCount(2)
-
-  // 轨道上折叠为聚合点：计数 2，点击展开为两个独立事件
-  const cluster = page.locator('g.event.cluster')
-  await expect(cluster).toHaveCount(1)
-  await expect(page.locator('.cluster-count')).toHaveText('2')
-  await cluster.click()
-  await expect(page.locator('svg g.event:not(.cluster) circle:not(.hit)')).toHaveCount(2)
-  await expect(page.getByText('收起 ×2')).toBeVisible()
-  // 收起按钮可用：点击后回到聚合点，再点又展开（按下不被画布拖拽捕获吞掉 click）
-  await page.locator('g.cluster-collapse').click()
-  await expect(page.locator('g.event.cluster')).toHaveCount(1)
-  await expect(page.locator('svg g.event:not(.cluster) circle:not(.hit)')).toHaveCount(0)
-  await cluster.click()
-  await expect(page.locator('svg g.event:not(.cluster) circle:not(.hit)')).toHaveCount(2)
-  // 展开后点第一个事件圆点 → 抽屉打开
-  await page.locator('svg g.event:not(.cluster) circle:not(.hit)').first().click()
-  await expect(page.getByText(/事件：新事件/).first()).toBeVisible({ timeout: 5000 })
-  // 首条轨道下移：事件圆点 y ≥ 60（不被顶部工具栏遮挡）
-  const topCircleY = await page.locator('svg g.event:not(.cluster) circle:not(.hit)').first().boundingBox()
-  expect(topCircleY?.y ?? 0).toBeGreaterThan(60)
-})
-
-test('M4 缩放尺度限制：极端放大/缩小后无错误且视图可恢复', async ({ page }) => {
-  const errors: string[] = []
-  page.on('pageerror', (e) => errors.push(e.message))
-  await freshProject(page, '缩放限制验证')
-  await page.goto('/#/timeline')
-  await page.getByRole('button', { name: /新建事件/ }).click()
-  await page.getByRole('button', { name: '创建并编辑' }).click()
-  await page.waitForTimeout(600)
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(400)
-
-  const board = page.locator('.board')
-  const box = await board.boundingBox()
-  const cx = box!.x + box!.width / 2
-  const cy = box!.y + 100
-  await page.mouse.move(cx, cy)
-  // 极端放大（40 次）与极端缩小（80 次）——被钳制后不崩溃、事件仍在渲染
-  for (let i = 0; i < 40; i++) await page.mouse.wheel(0, -120)
-  for (let i = 0; i < 80; i++) await page.mouse.wheel(0, 120)
-  await page.waitForTimeout(500)
-  // 序位轴：等距排布，事件点下标注历法时间文本
-  const timeLabels = await page.locator('.event-time').allTextContents()
-  expect(timeLabels.length).toBeGreaterThan(0)
-  expect(timeLabels.some((t) => t.includes('通用纪年'))).toBe(true)
-  // 侧栏列表入口仍可选中事件（缩放丢失视野后的恢复路径）
-  await page.locator('.ev-row').first().click()
-  await expect(page.getByText(/事件：新事件/).first()).toBeVisible({ timeout: 5000 })
-  await page.keyboard.press('Escape')
-  expect(errors).toEqual([])
-})
-
-test('M4 时间轴拖拽惯性：松手后继续滑行且无错误', async ({ page }) => {
-  const errors: string[] = []
-  page.on('pageerror', (e) => errors.push(e.message))
-  await freshProject(page, '惯性别证')
-  await page.goto('/#/timeline')
-  await page.getByRole('button', { name: /新建事件/ }).click()
-  await page.getByRole('button', { name: '创建并编辑' }).click()
-  await page.waitForTimeout(500)
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(400)
-
-  const board = page.locator('.board')
-  const box = await board.boundingBox()
-  const cx = box!.x + box!.width / 2
-  const cy = box!.y + 130
-  // 快速拖拽释放：断言滑行（释放后圆点 x 仍在变化）。
-  // 步进等待取小值且 up 紧跟最后一步——间隔过大时 flingVelocity 的 120ms 采样窗口截不到样本，负载下会抖成无滑行
-  await page.mouse.move(cx + 60, cy)
-  await page.mouse.down()
-  for (let i = 0; i < 7; i++) {
-    await page.mouse.move(cx + 60 - i * 20, cy, { steps: 1 })
-    await page.waitForTimeout(10)
-  }
-  await page.mouse.up()
-  const dot = page.locator('svg g.event circle:not(.hit)').first()
-  const x1 = Number(await dot.getAttribute('cx'))
-  await page.waitForTimeout(150)
-  const x2 = Number(await dot.getAttribute('cx'))
-  await page.waitForTimeout(800)
-  const x3 = Number(await dot.getAttribute('cx'))
-  // x1→x2：惯性滑行中；x2→x3：已停止（衰减完成）
-  expect(Math.abs(x2 - x1)).toBeGreaterThan(1)
-  expect(Math.abs(x3 - x2)).toBeLessThan(Math.abs(x2 - x1))
-  expect(errors).toEqual([])
+  await expect(page.locator('.draft-box')).toBeVisible({ timeout: 8000 })
+  await page.goto('/#/graph')
+  await page.reload()
+  await expect(page.locator('.graph-wrap')).toBeVisible({ timeout: 8000 })
 })
 
 test('M7 巡检面板打开显示健康状态', async ({ page }) => {
@@ -296,7 +259,6 @@ test('G2 控制台无 error（主流程走查）', async ({ page }) => {
   await page.goto('/#/codex')
   await page.goto('/#/timeline')
   await page.goto('/#/graph')
-  await page.goto('/#/timeline/canvas')
   await page.goto('/#/export')
   await page.waitForTimeout(1500)
   expect(errors).toEqual([])

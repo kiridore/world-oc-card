@@ -21,7 +21,6 @@
 | zip | fflate | ^0.8.3 | zipSync/unzipSync 同步 API |
 | Markdown | marked | ^18.0.10 | gfm；`marked.parse` 返回 string 时直接 cast |
 | 图谱 | @antv/g6 | ^5.1.1 | **增量路径有坑**（见 §5.3） |
-| 画布 | @vue-flow/core | ^1.48.2 | 节点需传 data + label（坑：不传 label 灰色空白节点） |
 | 测试 | vitest ^4 / playwright ^1.62 | — | node 环境 + fake-indexeddb；E2E 走生产构建 preview |
 | 其他 | html2canvas（PNG 时间轴/角色卡） | ^1.4.1 | — |
 
@@ -37,10 +36,12 @@
 | **百科条目名全局唯一** | `[[条目名]]` 链接解析依赖；重名保存被阻止（A1） | DESIGN 附录 A1 |
 | **失效引用占位** | 引用目标缺失时 UI 显示占位，绝不崩溃（G5） | — |
 | **世界线（Worldline）** | 类 Git branch；第一条为主世界线（不可删）；状态 active/abandoned | DESIGN §2.4.1 |
-| **分叉（Fork）** | 在某事件创建 IF 线；`parentWorldlineId` + `forkPointEventId`；fork 点失效则继承该祖先线全部定时事件 | DESIGN §2.4.1、fork.ts |
-| **序位轴（Rank Axis）** | 时间轴 x 只表达先后：跨世界线按绝对纪元排序 dense rank 等距编序，同刻共享序位 | DESIGN A4、timelineOrder.ts |
-| **聚簇（Cluster）** | 同刻多事件折叠为 ×N 聚合点，点击展开纵向错开 ±16/32px | A7、v1.4.0 |
-| **绝对纪元（Absolute Era）** | `value × unitYears + offset`（历法线性换算，排序唯一依据） | calendar.ts |
+| **分叉（Fork）** | 在某事件创建 IF 线；`parentWorldlineId` + `forkPointEventId`；fork 点失效则继承该祖先线（v3：按父线内 rank ≤ fork 点 rank）全部定时常 | DESIGN §2.4.1、fork.ts |
+| ~~**序位轴（Rank Axis）**~~（v3 已移除） | ~~时间轴 x 只表达先后：跨世界线按绝对纪元排序 dense rank~~ | ~~timelineOrder.ts（已删）~~ |
+| ~~**聚簇（Cluster）**~~（v3 已移除） | ~~同刻多事件折叠为 ×N 聚合点，点击展开~~ | v1.4.0 |
+| ~~**绝对纪元（Absolute Era）**~~（v3 已移除） | ~~`value × unitYears + offset`（历法线性换算，排序唯一依据）~~ | calendar.ts（已删） |
+| **字符串纪年时间（v3）** | 事件时间双模式：纪年法四段（历/年/月/日，全自由字符串）/ 自定义自由文本；跨历史名需手动排序 | types、branchOrder.ts |
+| **排序徽标（v3）** | 不可解析事件带「待排序/手动序」，历史名切换处带「历法转接」；世界线内 `rank` 为顺序唯一真源 | branchOrder.ts |
 | **脏实体（Dirty Entity）** | `{kind, id}` 标记；500ms 防抖 flush；只写脏实体的写单元 | DESIGN §3.2、dirty.ts |
 | **模板（Template）** | 命名字段组合：角色 fieldBlocks / 百科 attributeKeys+骨架；保存默认剥离值保留结构 | DESIGN §2.6、template.ts |
 | **快照（Snapshot）** | 单文件 HTML：内联全部数据（图片仅 ≤200KB dataURL）+ 双主题 + 零外部请求 | DESIGN §2.5、snapshot.ts |
@@ -55,9 +56,9 @@
 
 ```
 Character ──fieldBlocks──> FieldBlock{ link: targetType(character|codexEntry|event) + targetId }
-Character <──participantIds── TimelineEvent
-CodexEntry <──locationId── TimelineEvent
-TimelineEvent ──causalLinks──> TimelineEvent[]（画布连线）
+Character ──participantIds──> TimelineEvent（v3：可含角色或百科势力条目，同一列）
+TimelineEvent ──relatedCodexIds──> CodexEntry（通用百科关联，v3 取代 locationId）
+~~TimelineEvent ──causalLinks──> TimelineEvent[]（画布连线，v3 已移除）~~
 Relation { from, to → Character；typeId → RelationType }
 Worldline { parentWorldlineId → Worldline；forkPointEventId → TimelineEvent }
 Template { codexTypeId → CodexType；payload.fieldBlocks / attributeKeys }
@@ -71,10 +72,10 @@ img 块 ──assetId──> assets 表 Blob（实体只存 assetId，永不内�
 | 百科条目标题+名称全局唯一（`[[名]]` 解析） | codex.ts / M3-E1 |
 | 主世界线不可删除 | TimelineView（按钮仅子线显示）/ M4-E1 |
 | 关系 schema 允许自环（from===to） | GraphView relFormOk / M5-E1 |
-| 事件 time 可为 null = 未定时草稿（仅画布） | types / M4-E3 |
+| 事件 time 可为 null = 未定时草稿（**v3 归顶部草稿箱，worldlineId 亦为 null**） | types / M4-E3 |
 | zip 布局 = dexie 表 = V2 落盘 = 导出格式（**四处一体**） | DESIGN §3.1 / develop §2.1 |
 | schema strict：未知字段拒绝（M0-E1） | schemas |
-| `CURRENT_SCHEMA_VERSION = 2`（唯一出处 types） | migration 依据 |
+| `CURRENT_SCHEMA_VERSION = 3`（唯一出处 types） | migration 依据 |
 
 ### 迁移管道（双通道）
 
@@ -109,18 +110,19 @@ STEPS: v0（关系内联 type/directed）→ v1（relationTypes + directed）→
 立即落盘时机：visibilitychange(hidden) / beforeunload / Ctrl+S
 ```
 
-### 4.2 fork 继承语义（fork.ts 核心）
+### 4.2 fork 继承语义（fork.ts 核心，v3 rank 边界）
 
-- 子线可见 = **本线自有定时事件** + **各祖先线按层 fork 边界（≤fork 时刻）的定时事件** + 本线未定时草稿
-- boundary 取 fork 点事件的绝对纪元；fork 点缺失/无时间 → 该层失效 → **继承该祖先线全部定时事件**（forkBroken=true，UI 标记）
+- 子线可见 = **本线自有事件** + **各祖先线按层 fork 边界（≤fork 点事件在该祖先线内的 rank）的定时事件**（v3：不再用绝对纪元）
+- boundary 取 fork 点事件在父线的 rank；fork 点缺失 → 该层失效 → **继承该祖先线全部定时常**（forkBroken=true，UI 标记「分叉点失效」）
 - 父线 fork 之后新增的事件**不会**出现在子线（M4-F3 反复断言）
 - 级联删除世界线 = 连同全部后代线（闭包收集）+ 其事件 + 父引用置空
 
-### 4.3 序位轴与缩放（timelineOrder / zoom）
+### 4.3 事件排序（branchOrder，v3）
 
-- dense rank：绝对纪元排序后等距 0..n-1；同刻共享序位 → 与聚簇语义对齐
-- 缩放钳制：最近 MIN_SPAN=0.05 序位（≈两相邻事件拉开 20 屏），最远=全景外扩两格（随事件数自适应）；越界以视域中点收缩/扩展
-- 轨道空白插入：取两侧邻事件绝对纪元中点（同刻偏移 unitYears/2），再换算回新事件 time
+- 世界线内 `rank`（0..n-1 整数）为顺序唯一真源；软解析（可解析性/插入位）只负责补时间时自动定位，不持久化解析结果
+- 可解析：纪年法且 年/月/日 全可转数字（空按 0），按 `(历名, 年, 月, 日)` 元组比较；不可解析（自定义/含非数字 token）→ 线尾 + 「待排序」徽标
+- 跨历名：同历名才可自动比较；历名切换处带「历法转接，请核对」徽标（纯派生）
+- 拖拽重排（线内）→ `applyOrder` 重编号；显示文本 `displayTime` 派生
 
 ### 4.4 颜色纪律机制（G10/G13，改颜色前必读）
 
@@ -157,7 +159,7 @@ STEPS: v0（关系内联 type/directed）→ v1（relationTypes + directed）→
 6. **删除实体走 integrity.ts 级联函数**，并对被波及实体逐一 `store.mark()`（否则 db 残留死行）
 7. **G6 v5.1 增量更新路径（setData+render）新增边不绘制** → 统一销毁重建走挂载路径 + `lastRenderKey`（数据+主题指纹）跳过无变化重建；渲染串行化防重入
 8. **图谱数据 watch 必须 `{ deep: true }`**（relations/characters 原地 push/assign，引用不变浅 watch 不触发）
-9. **Playwright 合成拖拽对 G6 画布在 firefox/msedge 无效** → E2E 图谱视口断言用滚轮驱动；SVG 时间轴点击不受影响
+9. **Playwright 合成拖拽对 G6 画布在 firefox/msedge 无效** → E2E 图谱视口断言用滚轮驱动；时间线卡片点击/DnD 用 DOM（HTML5 `dispatchEvent(dataTransfer)` 驱动重排，G6 坑不影响）
 
 ### 5.2 视图级坑
 

@@ -19,10 +19,9 @@ src/
   views/                七个路由视图（Home/Characters/Codex/Timeline/Canvas/Graph/Export）
   components/           视图内组件（BlockEditor 块编辑器、TemplatePicker/Manager 等）
   utils/                纯函数（无 Vue 依赖，可单测）
-    calendar/fork/integrity/template/markdown/mdExport/snapshot/colors/tokens/
-    timelineOrder(序位轴 rank)/fling(惯性)/zoom(缩放钳制)/graphHolder(导出用 G6 实例)
-  styles/tokens.css     双主题 design token（唯一颜色来源）
-e2e/                    Playwright（smoke / verification 14 / perf），三浏览器矩阵
+    branchOrder(事件排序：软解析/重编号/徽标)/fork/integrity/template/markdown/mdExport/snapshot/colors/tokens/
+    graphHolder(导出用 G6 实例)；~~fling(惯性)/zoom(缩放钳制)~~ v3 序位轴移除后未引用，待清理
+e2e/                    Playwright（smoke / verification 13 / perf），三浏览器矩阵
 scripts/check-tokens.mjs G10/G13 颜色纪律静态检查
 ```
 
@@ -98,13 +97,13 @@ router 注册（hash history，RouteMeta 需模块增强时在 router 里 declar
 - 渲染统一**销毁重建**（挂载路径 preLayoutDraw）——增量路径（`setData`+`render`）新增边不绘制，见 AGENTS 坑 7；
 - 数据 watch 必须 `{ deep: true }`（relations/characters 原地变更，引用不变）；
 - Point 是 `[x, y]` 元组；视口变换事件是 `aftertransform`（无 viewportchange）；探测视口用 `getViewportByCanvas` 两点法；
-- 自研 SVG 时间轴（TimelineView）没有这些坑，坑都在 G6 侧。
+- 泳道式卡片时间线（TimelineView，纯 DOM + SVG 覆盖层连线）没有 G6 的坑——卡片点击/横纵切换/拖拽重排（HTML5 DnD）均直接断言 DOM，详见「新增 E2E」；坑都在 G6 图谱侧。
 
 ### 4.5 新增 E2E
 
 - 放 `e2e/`，跑生产构建（playwright webServer 起 `vite preview:4173`）——**改了 src 必须先 `npm run build`**，preview 服务的是 dist（`reuseExistingServer` 会复用旧进程，必要时杀掉 4173）；
 - Naive 弹窗内选择器：`locator('.n-base-selection')` 打开后 `keyboard.type` 过滤 + ArrowDown + Enter 选中（Enter 即选中并关闭，不要再按 Escape——曾导致下拉拦截后续点击）；
-- 涉及 G6 画布视口的断言用**滚轮**驱动，不要合成拖拽（firefox/msedge 分支无效，AGENTS 坑 9）；SVG 时间轴的点击不受此影响；
+- 涉及 G6 画布视口的断言用**滚轮**驱动，不要合成拖拽（firefox/msedge 分支无效，AGENTS 坑 9）；时间线卡片点击/线内 DnD 重排用 DOM（`dispatchEvent` + `DataTransfer`）驱动，不涉及 G6 兼容坑；
 - 三浏览器矩阵：`npx playwright test`（chromium/firefox/msedge projects 已配好）。
 
 ## 5. 测试与验收

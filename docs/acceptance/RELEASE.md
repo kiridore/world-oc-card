@@ -8,13 +8,13 @@
 
 | 证据源 | 结果 |
 |---|---|
-| 单元测试（Vitest） | **74/74 通过**（schemas / storage / zip / migration / template / markdown / integrity / calendar / fork / colors / mdExport / snapshot） |
-| E2E（Playwright，生产构建） | **33/33 通过**（smoke 1 + verification 9 + perf 1，× 3 浏览器） |
-| 覆盖率（G8：数据层+纯函数） | lines：schemas 100% / storage 93% / utils 88%（≥70% ✓） |
+| 单元测试（Vitest） | **97/97 通过**（schemas / storage / zip / migration / template / markdown / integrity / branchOrder / fork / colors / mdExport / snapshot） |
+| E2E（Playwright，生产构建） | **45/45 通过**（smoke 1 + verification 13 + perf 1，× 3 浏览器） |
+| 覆盖率（G8：数据层+纯函数） | lines：schemas 100% / storage 94% / utils 92%（≥70% ✓，全量 93%） |
 | token 静态检查（G10/G13） | 通过：双主题 token 齐全、chrome 饱和度 ≤40%、无白名单外颜色字面量 |
 | ESLint | 0 error（8 条 unused-vars 类 warning，已记录，符合 G2"warning 允许需记录"） |
 | 生产构建 | vue-tsc 0 错误；首屏 chunk gzip 220KB（≤300KB，M0-P1） |
-| 性能实测（E2E 生产构建） | 打开项目(200角色+1000事件) 140ms；时间轴渲染 1004 事件/5 线 124ms；画布加载 393ms |
+| 性能实测（E2E 生产构建） | 打开项目(200角色+1000事件) 374ms；时间轴渲染 1000 卡片/5 线 138ms（v3 泳道卡片） |
 | 浏览器人工走查（IAB，生产预览） | 项目/角色模板/百科/时间线 fork/图谱边创建/主题切换/纹理/衬线正文/巡检面板 全部通过；关键页截图已采集 |
 
 ## 里程碑验收（AC 逐条）
@@ -78,14 +78,15 @@
 - ~~M4-F5 双视图同源~~：**已移除（v3 删画布视图）**
 - ✅ M4-F6 软解析排序：calendar 模式 年/月/日 全数字者按 (历名,年,月,日) 自动入列；不可解析/custom 落线尾（branchOrder.test）
 - ✅ M4-F7 排序徽标：待排序→手动序（拖拽后）/ 历法转接（branchOrder.test badgeFor）
-- ✅ M4-F8 横纵切换：默认 PC 横 / 移动窄屏纵；localStorage 持久化（E2E 断言待 Task 9 重写后补）
+- ✅ M4-F8 横纵切换：默认 PC 横 / 移动窄屏纵；localStorage 持久化（E2E `M4-F8 横纵切换`：class h↔v 翻转 + 刷新后仍 v）
+- ✅ M4-F8 线内拖拽重排：卡片 DnD（HTML5 DataTransfer）后顺序交换（E2E `M4-F8 线内拖拽重排`，DOM `data-eid` 顺序断言）
 - ✅ M4-E1 删线级联+主世界线不可删（按钮仅子线显示；integrity 测试级联含后代）
-- ✅ M4-E2 fork 点被删/变草稿→标记失效可重指定不崩溃（fork.test 两种形态）
-- ✅ M4-E3 草稿箱：未定时进顶部草稿箱、不出现在泳道；补时间选线入列；可放回（E2E 断言待 Task 9 重写后补）
+- ✅ M4-E2 fork 点被删→标记「分叉点失效」不崩溃（fork.test 两种形态 + TimelineView 锚点失效 tag）
+- ✅ M4-E3 草稿箱：未定时进顶部草稿箱、不出现在泳道；补时间选线入列；可放回（E2E `M4-E3 草稿箱`：出箱/入线/放回三段断言）
 - ✅ M4-E4 废弃线折叠淡显/展开/提示（折叠开关+虚线淡显样式）
 - ✅ M4-S1 12 色调色板双主题对比度 ≥3:1（colors.test 逐色逐主题断言）+ 自定义色对比度提示
 - ✅ M4-S2 图表颜色全部走 token/数据色，主题切换即时换肤（E2E G9 + 代码扫描 G10）
-- ✅ M4-P1 1000 事件+5 线初始渲染 <2s（E2E perf 待 T9 重跑）
+- ✅ M4-P1 1000 事件+5 线初始渲染 <2s（E2E perf：render 138ms；泳道卡片 eventCount>900 / laneCount=5）
 - ~~M4-P2 画布性能~~：**已移除（v3 删画布视图）**
 - ✅ M4-D1 fork 可见事件集合计算 Vitest（rank 语义）；branchOrder 纯函数 Vitest
 
@@ -179,7 +180,7 @@
 | v2.3.1 | 点阵跟随视口平移/缩放 | E2E `M5 点阵背景跟随`：滚轮缩放→CSS 变量变化断言，三浏览器 |
 | v2.3.2 | 关系连线曲线化；修复页内新建关系不重绘（deep watch + G6 增量路径绕行） | E2E `M5 页内新建关系曲线立即渲染`（截图字节比对）；视觉走查（弧线+标签） |
 | v2.3.3 | 修复聚簇「收起」按钮被拖拽 pointer capture 吞掉点击 | E2E `M4 同刻多事件` 补收起→回归→再展开断言，三浏览器 |
-| **v3.0.0** | **时间线 v3 重构（破坏性 schemaVersion 2→3）**：字符串纪年双模式时间、世界线内软解析+手动排序（rank 真源）、泳道式卡片视图（横/纵 + 顶部草稿箱）、移除因果连线/画布视图/历法实体/序位轴交互；可选字段变更为参与者（含势力）与通用百科关联 | 单测 **97/97**（含新 branchOrder / 迁移 v2→v3 / integrity v3）；E2E 与全量门禁证据 **待 Task 9 重写后补** |
+| **v3.0.0** | **时间线 v3 重构（破坏性 schemaVersion 2→3）**：字符串纪年双模式时间、世界线内软解析+手动排序（rank 真源）、泳道式卡片视图（横/纵 + 顶部草稿箱）、移除因果连线/画布视图/历法实体/序位轴交互；可选字段变更为参与者（含势力）与通用百科关联 | 单测 **97/97**；E2E **45/45**（smoke 1 + verification 13 + perf 1 ×3 浏览器）；覆盖率 lines 93%；build/lint/tokens 全绿；perf：open 374ms / 时间轴 1000 卡片 5 线 138ms |
 
 ### 迭代期缺陷修复记录（择要）
 
