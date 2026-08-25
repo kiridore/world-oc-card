@@ -200,7 +200,9 @@ function save(): void {
   if (!hasTime) {
     // 草稿：全字段保存（worldlineId 强制 null，防止草稿被误挂线）
     if (hadTime) {
+      // 先放回草稿（捕获原线以重编号），再全字段持久化（含非时间编辑）
       store.moveToDraft(draft.value.id)
+      store.upsertEvent({ ...clone(), worldlineId: null, time: null, rank: 0 })
       emit('close')
       message.success('已放回草稿箱')
     } else {
@@ -217,7 +219,9 @@ function save(): void {
   } else {
     const timeChanged = JSON.stringify(draft.value.time) !== JSON.stringify(b!.time)
     const lineChanged = lineId.value !== b!.worldlineId
-    if (timeChanged) store.upsertEvent({ ...clone(), worldlineId: b!.worldlineId })
+    // 时间或线任一变化都先全字段持久化（保持原线，防仅换线/仅改时间丢非时间编辑；
+    // clone().worldlineId 恒为原线，覆盖仅为显式）
+    if (timeChanged || lineChanged) store.upsertEvent({ ...clone(), worldlineId: b!.worldlineId })
     if (lineChanged && lineId.value) store.moveToWorldline(draft.value.id, lineId.value)
     if (!timeChanged && !lineChanged) store.upsertEvent(clone())
     message.success('事件已保存')
