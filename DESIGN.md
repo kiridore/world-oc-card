@@ -144,7 +144,7 @@ type FieldBlock =
 |--------|------|
 | 项目完整备份 | **zip 文件**（内为 §3.1 的文件夹布局，fflate 打包），唯一完整备份/迁移格式，可再导入 |
 | 角色卡 | Markdown 文件 / PNG 图片 |
-| 关系图谱 / 时间线 | PNG（html2canvas / G6、Vue Flow 自带 toImage） |
+| 关系图谱 / 时间线 | PNG（关系图谱：G6 toImage；时间线：html2canvas 截取 .lanes 区域） |
 | 分享快照 | **单文件 HTML**：内联全部数据的只读浏览页（可切角色/百科/时间线 tab），发给他人或挂静态托管即可查看 |
 
 ### 2.6 模板系统（Template）
@@ -185,7 +185,7 @@ interface Template {
 ```
 <project-name>/
   project.json               # 项目元信息: name, schemaVersion, createdAt, updatedAt, 统计
-  settings.json              # 历法 / 关系类型 / 百科类型 / 世界线（均为小集合）
+  settings.json              # 关系类型 / 百科类型 / 世界线（均为小集合）
   relations.json             # 关系边集合（每条边很小）
   templates.json             # 模板集合（角色块模板 / 百科属性模板，见 §2.6）
   characters/
@@ -227,6 +227,7 @@ interface Template {
 - 所有跨实体引用一律 UUID（`[[条目名]]` 仅是编辑语法，保存时解析为 UUID）；
 - **失效引用不崩溃**：引用目标缺失时 UI 显示"失效引用"占位（导入不完整 zip、手工误删文件时项目仍可打开）；
 - 级联删除（删角色 → 清理 participantIds、关系边、link 块）在同一事务内完成。
+- **v0–v2 旧数据**：schemaVersion 3 起事件时间为字符串纪年双模式（纪年法四段式 / 自定义自由文本）。v2→v3 迁移将数值纪元时间转为字符串（年历→era+year、月历→custom 保真）、`locationId` 并入 `relatedCodexIds`、丢弃 `causalLinks`/`canvasPos`；zip 导入对旧格式经 legacy schema 容错后走迁移管道（见 §3.1）。
 
 ### 3.4 性能边界备忘
 
@@ -247,9 +248,8 @@ interface Template {
 ├─────────────────────────────────────────────┤
 │  可视化层                                     │
 │   关系图谱: AntV G6                           │
-│   画布视图: Vue Flow                          │
-│   时间轴视图: 自研 SVG 组件                    │
-│   导出图片: 各库自带 toImage / html2canvas    │
+│   时间轴泳道: 自研 DOM 泳道 + SVG 连线        │
+│   导出图片: G6 toImage / html2canvas          │
 │   zip 导入导出: fflate                        │
 ├─────────────────────────────────────────────┤
 │  存储抽象层（关键设计）                        │
@@ -279,8 +279,7 @@ interface Template {
 /                 项目选择/新建
 /characters       角色列表 + 编辑
 /codex            百科条目
-/timeline         时间轴视图
-/timeline/canvas  画布视图
+/timeline         时间轴视图（泳道式卡片，横/纵可切换）
 /graph            关系图谱
 /export           导出与分享中心
 ```
@@ -309,7 +308,7 @@ interface Template {
 | `--texture-opacity` / `--texture-vein` / `--texture-sheen` | 大理石纹理参数（纹路透明度 / 石纹强度 / 冷光泽强度），两主题各调一组 |
 
 - **双主题**：`data-theme="dark|light"` + CSS 变量驱动，切换即时生效并持久化（localStorage），首次访问跟随系统 `prefers-color-scheme`；Naive UI 经 `n-config-provider` 同步换肤；
-- 图表库（G6 / Vue Flow / 自研时间轴）颜色一律运行时读取同一套变量 → 主题切换全应用无刷新换肤；
+- 图表库（G6 / 时间线泳道）颜色一律运行时读取同一套变量 → 主题切换全应用无刷新换肤；
 - V1 不做项目级主题定制（V2 快照页主题定制预留：token 体系即基础）。
 
 ### 5.3 大理石质感实现
@@ -354,7 +353,7 @@ interface Template {
 | 3 | 角色模块 + 模板系统：列表 / 卡片 / 块编辑器（增删排序块）；模板保存 / 加载 / 管理 / 单文件导入导出 | /characters |
 | 4 | 百科模块：条目 CRUD + 属性模板 + 双向链接 + 反向引用 | /codex |
 | 5 | 时间线数据层 + 时间轴视图：事件 CRUD、世界线 fork、分叉渲染 | /timeline |
-| 6 | 画布视图：Vue Flow 集成、causalLinks 连线 | /timeline/canvas |
+| 6 | ~~画布视图：Vue Flow 集成、causalLinks 连线~~ → v3 已移除，改泳道式卡片时间线（见 §2.4.4） | ~~/timeline/canvas~~ 已删除 |
 | 7 | 关系图谱：G6 渲染、关系类型管理、边编辑 | /graph |
 | 8 | 导出中心：zip / Markdown / PNG / 单文件 HTML 快照 | /export |
 | 9 | 打磨：引用完整性检查、历法管理、快捷键、空态引导 | V1 发布 |
