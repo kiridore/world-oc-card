@@ -158,7 +158,7 @@ export function removeWorldlineCascade(data: ProjectData, worldlineId: string): 
       if (w.parentWorldlineId && ids.has(w.parentWorldlineId) && !ids.has(w.id)) { ids.add(w.id); grew = true }
     }
   }
-  data.events = data.events.filter((e) => !ids.has(e.worldlineId))
+  data.events = data.events.filter((e) => !e.worldlineId || !ids.has(e.worldlineId))
   for (const w of data.settings.worldlines) {
     if (w.parentWorldlineId && ids.has(w.parentWorldlineId)) w.parentWorldlineId = null
   }

@@ -96,7 +96,7 @@ function v2toV3(data: ProjectData, warnings: string[]): ProjectData {
       locked: e.locked,
     }
   })
-  delete (data.settings as Record<string, unknown>).calendars
+  delete (data.settings as unknown as Record<string, unknown>).calendars
   warnings.push('数据已从 v2 迁移到 v3（数值纪年 → 字符串纪年；因果连线 causalLinks 已移除）')
   return { ...data, settings: data.settings, events }
 }

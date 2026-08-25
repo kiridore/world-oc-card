@@ -354,7 +354,7 @@ describe('M1-F6 v2→v3 迁移（字符串纪年）', () => {
     expect('causalLinks' in ev('e1')).toBe(false)
     expect('canvasPos' in ev('e1')).toBe(false)
     // settings.calendars 键被删除
-    expect((res.data.settings as Record<string, unknown>).calendars).toBeUndefined()
+    expect((res.data.settings as unknown as Record<string, unknown>).calendars).toBeUndefined()
     // rank：w1 按绝对纪元升序 5<10<30 → e2=0, e1=1, e3=2
     const w1 = res.data.events.filter((e) => e.worldlineId === 'w1').sort((a, b) => a.rank - b.rank)
     expect(w1.map((e) => e.id)).toEqual(['e2', 'e1', 'e3'])

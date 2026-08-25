@@ -19,7 +19,7 @@ export function useShortcuts(openHelp: () => void): void {
     }
     if (mod && ev.shiftKey && ev.key.toLowerCase() === 't') {
       ev.preventDefault()
-      router.push(router.currentRoute.value.path === '/timeline' ? '/timeline/canvas' : '/timeline')
+      router.push('/timeline')
       return
     }
     if (mod && ev.altKey && ev.key.toLowerCase() === 'c') {
@@ -45,7 +45,7 @@ export function useShortcuts(openHelp: () => void): void {
 
 export const SHORTCUT_HELP: { keys: string; desc: string }[] = [
   { keys: 'Ctrl + S', desc: '立即保存（手动 flush 防抖队列）' },
-  { keys: 'Ctrl + Shift + T', desc: '时间轴 ↔ 画布 切换' },
+  { keys: 'Ctrl + Shift + T', desc: '前往时间轴' },
   { keys: 'Ctrl + Alt + C', desc: '新建角色' },
   { keys: 'Ctrl + Alt + E', desc: '新建事件' },
   { keys: '?', desc: '显示本帮助' },

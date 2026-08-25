@@ -12,8 +12,7 @@ export const router = createRouter({
     { path: '/characters', name: 'characters', component: () => import('@/views/CharactersView.vue'), meta: { title: '角色', icon: 'Users', order: 1 } },
     { path: '/codex', name: 'codex', component: () => import('@/views/CodexView.vue'), meta: { title: '百科', icon: 'BookOpen', order: 2 } },
     { path: '/timeline', name: 'timeline', component: () => import('@/views/TimelineView.vue'), meta: { title: '时间轴', icon: 'GitBranch', order: 3 } },
-    { path: '/timeline/canvas', name: 'canvas', component: () => import('@/views/CanvasView.vue'), meta: { title: '画布', icon: 'Network', order: 4 } },
-    { path: '/graph', name: 'graph', component: () => import('@/views/GraphView.vue'), meta: { title: '图谱', icon: 'Share2', order: 5 } },
-    { path: '/export', name: 'export', component: () => import('@/views/ExportView.vue'), meta: { title: '导出', icon: 'Download', order: 6 } },
+    { path: '/graph', name: 'graph', component: () => import('@/views/GraphView.vue'), meta: { title: '图谱', icon: 'Share2', order: 4 } },
+    { path: '/export', name: 'export', component: () => import('@/views/ExportView.vue'), meta: { title: '导出', icon: 'Download', order: 5 } },
   ],
 })
