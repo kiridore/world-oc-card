@@ -83,31 +83,46 @@ test('M4 泳道背骨线 + 分叉相对定位 + 统一横滚', async ({ page }) 
   // IF 卡入泳道：背骨 2 条（主干 2 卡 1 条 + IF 线 2 卡 1 条）、fork 曲线 1 条
   await expect(page.locator('.fork-overlay path.backbone')).toHaveCount(2)
   await expect(page.locator('.fork-overlay path.fork')).toHaveCount(1)
-  // 分叉对齐（横）：IF 首卡 paddingLeft ≈ 锚点卡内容 x
-  const anchorX = await page.locator('.lane').first().locator('.lane-cards .card').first().evaluate((el) => {
-    const lanes = document.querySelector('.lanes')!
-    const lr = lanes.getBoundingClientRect()
-    return el.getBoundingClientRect().left - lr.left + lanes.scrollLeft
-  })
-  const ifPadding = await page.locator('.lane').nth(1).locator('.lane-cards').evaluate(
-    (el) => parseFloat(getComputedStyle(el).paddingLeft),
+  // 卡的内容系坐标（相对 .lanes 容器，含 scroll 矫正）
+  const contentBox = (loc: import('@playwright/test').Locator) =>
+    loc.evaluate((node) => {
+      const lanes = document.querySelector('.lanes')!
+      const lr = lanes.getBoundingClientRect()
+      const r = node.getBoundingClientRect()
+      return { left: r.left - lr.left + lanes.scrollLeft, top: r.top - lr.top + lanes.scrollTop, width: r.width, height: r.height }
+    })
+  // 分叉对齐（横）：IF 首卡实际左缘 ≈ 锚点卡（217）实际左缘
+  const anchor = page.locator('.lane').first().locator('.lane-cards .card').filter({ hasText: '217' }).first()
+  const ifFirst = page.locator('.lane').nth(1).locator('.lane-cards .card').first()
+  await expect(anchor).toHaveCount(1)
+  const before = { anchor: await contentBox(anchor), ifCard: await contentBox(ifFirst) }
+  expect(Math.abs(before.ifCard.left - before.anchor.left)).toBeLessThanOrEqual(2)
+  // fork 曲线端点 x2 与 IF 首卡中心一致（量测未陈旧）
+  const forkX2 = await page.locator('.fork-overlay path.fork').evaluate(
+    (p) => parseFloat(p.getAttribute('d')!.split(' ')[6]!),
   )
-  expect(Math.abs(ifPadding - anchorX)).toBeLessThanOrEqual(2)
+  expect(Math.abs(forkX2 - (before.ifCard.left + before.ifCard.width / 2))).toBeLessThanOrEqual(2)
   // 统一横滚：横向模式下 lane-cards 无独立 overflow-x
   const ox = await page.locator('.lane-cards').first().evaluate((el) => getComputedStyle(el).overflowX)
   expect(ox).not.toBe('auto')
-  // 纵向模式：padding 改 paddingTop 对齐
-  await page.getByRole('button', { name: /切换到纵向/ }).click()
-  await page.waitForTimeout(300)
-  const anchorY = await page.locator('.lane').first().locator('.lane-cards .card').first().evaluate((el) => {
-    const lanes = document.querySelector('.lanes')!
-    const lr = lanes.getBoundingClientRect()
-    return el.getBoundingClientRect().top - lr.top + lanes.scrollTop
-  })
-  const ifTop = await page.locator('.lane').nth(1).locator('.lane-cards').evaluate(
-    (el) => parseFloat(getComputedStyle(el).paddingTop),
+  // 手动重排后跟随：把主干第二张卡拖到锚点前 → 锚点右移，IF 首卡与 fork 端点同步跟随
+  const dt = await page.evaluateHandle(() => new DataTransfer())
+  const mainCards = page.locator('.lane').first().locator('.card')
+  await mainCards.nth(1).dispatchEvent('dragstart', { dataTransfer: dt })
+  await mainCards.nth(0).dispatchEvent('drop', { dataTransfer: dt })
+  await page.waitForTimeout(600)
+  const after = { anchor: await contentBox(anchor), ifCard: await contentBox(ifFirst) }
+  expect(after.anchor.left).toBeGreaterThan(before.anchor.left + 100) // 锚点确实后移
+  expect(Math.abs(after.ifCard.left - after.anchor.left)).toBeLessThanOrEqual(2) // IF 卡跟随
+  const forkX2b = await page.locator('.fork-overlay path.fork').evaluate(
+    (p) => parseFloat(p.getAttribute('d')!.split(' ')[6]!),
   )
-  expect(Math.abs(ifTop - anchorY)).toBeLessThanOrEqual(2)
+  expect(Math.abs(forkX2b - (after.ifCard.left + after.ifCard.width / 2))).toBeLessThanOrEqual(2) // 曲线刷新
+  // 纵向模式：IF 首卡上缘 ≈ 锚点卡上缘
+  await page.getByRole('button', { name: /切换到纵向/ }).click()
+  await page.waitForTimeout(400)
+  const v = { anchor: await contentBox(anchor), ifCard: await contentBox(ifFirst) }
+  expect(Math.abs(v.ifCard.top - v.anchor.top)).toBeLessThanOrEqual(2)
 })
 
 test('M4-E3 草稿箱：未定时进箱不进泳道；补时间入线；放回箱', async ({ page }) => {

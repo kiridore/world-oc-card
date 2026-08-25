@@ -435,8 +435,10 @@ function onDrop(e: DragEvent, lineId: string, targetEventId: string): void {
 // ---- fork 连接线 + 背骨线 + 分叉偏移（SVG 覆盖层 + inline padding，DOM 量测 + ResizeObserver）----
 interface Connector { id: string; d: string; color: string; kind: 'fork' | 'backbone' }
 const connectors = ref<Connector[]>([])
-/** IF 线首卡偏移（内容系 px）：与锚点卡左缘（横）/上缘（纵）对齐 */
+/** IF 线首卡偏移（px）：与锚点卡左缘（横）/上缘（纵）对齐 */
 const laneOffsets = ref<Record<string, number>>({})
+/** 上一拍偏移签名：变化时追加重测拍（幂等终止） */
+const lastOffsetSig = ref('')
 
 function refreshConnectors(): void {
   if (!lanesEl.value) return
@@ -452,11 +454,13 @@ function refreshConnectors(): void {
   for (const l of lanes.value) {
     const pid = l.wl.parentWorldlineId
     if (!l.anchorEventId || !pid || !lanesEl.value) continue
+    const parentCardsEl = lanesEl.value.querySelector<HTMLElement>(`[data-lane="${pid}"] .lane-cards`)
     const parentEl = lanesEl.value.querySelector<HTMLElement>(`[data-lane="${pid}"] [data-eid="${l.anchorEventId}"]`)
     const firstEl = lanesEl.value.querySelector<HTMLElement>(`[data-lane="${l.wl.id}"] .card`)
-    if (!parentEl || !firstEl) continue
+    if (!parentEl || !firstEl || !parentCardsEl) continue
     const pr = parentEl.getBoundingClientRect()
     const fr = firstEl.getBoundingClientRect()
+    const pcr = parentCardsEl.getBoundingClientRect()
     const x1 = pr.left - originX + pr.width / 2
     const y1 = hMode ? pr.bottom - originY : pr.top - originY + pr.height / 2
     const x2 = fr.left - originX + fr.width / 2
@@ -465,9 +469,10 @@ function refreshConnectors(): void {
       ? `M ${x1} ${y1} C ${x1} ${(y1 + y2) / 2}, ${x2} ${(y1 + y2) / 2}, ${x2} ${y2}`
       : `M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`
     out.push({ id: `fork:${l.wl.id}`, d, color: lineColor(l.wl.color), kind: 'fork' })
-    // 分叉相对定位：首卡起缘对齐锚点卡起缘（仅当线内有卡片；空轨不偏移）
+    // 分叉相对定位：偏移相对**本泳道 lane-cards 容器起点**（父泳道与 IF 泳道的
+    // lane-cards 同一起点）——若相对 lanes 原点算，IF 卡会整体偏移 .lanes 内边距的量
     if (branchEvents(l.wl.id).length > 0) {
-      offsets[l.wl.id] = hMode ? pr.left - originX : pr.top - originY
+      offsets[l.wl.id] = hMode ? pr.left - pcr.left : pr.top - pcr.top
     }
   }
   // 背骨：同线相邻卡间隙段（各自边缘中点相连；拖拽中的卡排除防跳线）
@@ -484,7 +489,13 @@ function refreshConnectors(): void {
     }
   }
   connectors.value = out
-  laneOffsets.value = offsets
+  // 偏移变化 → 卡片因 padding 移动 → 追加一拍重测曲线端点（幂等：二拍 sig 相同即终止）
+  const sig = JSON.stringify(offsets)
+  if (sig !== lastOffsetSig.value) {
+    lastOffsetSig.value = sig
+    laneOffsets.value = offsets
+    void nextTick(refreshConnectors)
+  }
 }
 
 function laneOffsetStyle(wlId: string): { paddingLeft?: string; paddingTop?: string } | undefined {
