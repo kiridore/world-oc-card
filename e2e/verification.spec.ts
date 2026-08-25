@@ -150,6 +150,34 @@ test('M4-E3 草稿箱：未定时进箱不进泳道；补时间入线；放回�
   await expect(page.locator('.lane-cards .card')).toHaveCount(0)
 })
 
+test('M4-E4 世界线重命名：泳道头按钮对主干与 IF 线生效并持久化', async ({ page }) => {
+  await freshProject(page, '重命名验证')
+  await page.goto('/#/timeline')
+  await addTimedEvent(page, '217')
+  // fork 出 IF 线
+  await page.locator('.lane .lane-cards .card').first().click()
+  await page.getByRole('button', { name: /从此处创建 IF 线/ }).click()
+  await page.getByRole('dialog').getByRole('button', { name: '创建', exact: true }).click()
+  await expect(page.locator('.lane')).toHaveCount(2, { timeout: 5000 })
+  await page.keyboard.press('Escape')
+  async function renameLane(idx: number, name: string): Promise<void> {
+    await page.locator('.lane').nth(idx).locator('.lane-head button[title="重命名世界线"]').click()
+    await page.getByRole('dialog').locator('input').fill(name)
+    await page.getByRole('dialog').getByRole('button', { name: '确定', exact: true }).click()
+    await page.waitForTimeout(200)
+  }
+  // IF 线（第二条）重命名
+  await renameLane(1, 'IF 线 A')
+  await expect(page.locator('.lane-name').filter({ hasText: 'IF 线 A' }).first()).toBeVisible()
+  // 主干（第一条）重命名
+  await renameLane(0, '主干纪元')
+  await expect(page.locator('.lane-name').filter({ hasText: '主干纪元' }).first()).toBeVisible()
+  // 持久化：刷新后名称保留（含顶栏 chip 与泳道头）
+  await page.reload()
+  await expect(page.locator('.lane-name').filter({ hasText: 'IF 线 A' }).first()).toBeVisible()
+  await expect(page.locator('.lane-name').filter({ hasText: '主干纪元' }).first()).toBeVisible()
+})
+
 test('M4-F8 线内拖拽重排：HTML5 DnD 后卡片顺序交换', async ({ page }) => {
   await freshProject(page, 'DnD 验证')
   await page.goto('/#/timeline')

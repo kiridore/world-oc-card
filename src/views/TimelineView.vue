@@ -155,6 +155,13 @@
             <span class="lane-name">
               {{ l.wl.name }}
             </span>
+            <button
+              class="mini"
+              title="重命名世界线"
+              @click="renameWorldline(l.wl)"
+            >
+              <Pencil :size="12" />
+            </button>
             <n-tag
               v-if="l.wl.forkPointEventId && !anchorExists(l.wl.id)"
               size="tiny"
@@ -221,7 +228,7 @@
 <script setup lang="ts">
 import { ref, computed, h, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { NButton, NTag, NEmpty, NInput, useDialog, useMessage } from 'naive-ui'
-import { Plus, Trash2, Ban, RotateCcw, ImageDown, Columns } from 'lucide-vue-next'
+import { Plus, Trash2, Ban, RotateCcw, ImageDown, Columns, Pencil } from 'lucide-vue-next'
 import EmptyProject from '@/components/EmptyProject.vue'
 import EventDrawer from '@/components/timeline/EventDrawer.vue'
 import { useProjectStore } from '@/stores/project'
