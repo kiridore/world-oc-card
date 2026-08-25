@@ -16,6 +16,7 @@
 | [docs/develop.md](./develop.md) | **开发指南**：代码导览、数据流、常见开发任务手册、测试/验收/发布流程 | 日常开发第一站 |
 | [AGENTS.md](../AGENTS.md) | 协作者规则：分层边界、硬性规则（版本/颜色/图片/路由）、**本仓库 9 条已知坑** | 每次动手前（被工具自动注入） |
 | [docs/MAP.md](./MAP.md) | 本文档：文件级职责地图 + AC/测试索引 + 变更影响面 | 定位文件、评估改动范围 |
+| [ROADMAP.md](../ROADMAP.md) | **路线图**：近期可验收排期（v2.4–v2.7）/ 远期候选 / 已评估暂缓清单 | 规划方向、排期时 |
 | [docs/KNOWLEDGE_BASE.md](./KNOWLEDGE_BASE.md) | AI 知识库：术语表、机制深度解析、变更 SOP、FAQ | 深入开发/排查问题时 |
 | [docs/acceptance/RELEASE.md](../docs/acceptance/RELEASE.md) | 验收证据归档（M0–M7 逐条 ✅）+ 附录 B 迭代验收记录（v1.2.0→v2.3.3） | 行为变更后需同步更新；发布前核对 |
 | [CHANGELOG.md](../CHANGELOG.md) | 逐版本变更日志（语义化版本） | 每次修改后追加条目 |

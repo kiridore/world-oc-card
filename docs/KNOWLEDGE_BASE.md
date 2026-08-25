@@ -233,6 +233,7 @@ npx playwright test    # 16 用例 ×3 浏览器 = 48 执行（发布前提；�
 | 想了解 | 打开 |
 |--------|------|
 | 文件在哪儿/改哪儿 | 本库 + [MAP.md](./MAP.md) |
+| 下一步做什么/什么已否决 | [ROADMAP.md](../ROADMAP.md)（近期排期 / 远期候选 / 已评估暂缓） |
 | 数据模型权威定义 | DESIGN.md §2–§3 + src/types/index.ts |
 | 这条交互为什么这么做 | DESIGN.md 附录 A1–A9（决策记录） |
 | 验收标准原文 | DEV_PLAN.md（M0–M7 / G1–G16） |
