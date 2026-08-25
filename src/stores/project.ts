@@ -282,6 +282,8 @@ export const useProjectStore = defineStore('project', () => {
     const ev = current.value?.events.find((e) => e.id === eventId)
     if (!current.value) return
     removeEventCascade(current.value, eventId)
+    mark({ kind: 'event', id: eventId }) // 行删除：saveEntities 仅对脏引用且不在 current.events 的 id 执行 delete（防死行复活）
+    updateSettings() // forkPointEventId 置空随 settings 持久化
     if (ev?.worldlineId) reindexBranch(ev.worldlineId)
   }
 
