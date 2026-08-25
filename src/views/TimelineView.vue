@@ -308,7 +308,10 @@ function branchEvents(wlId: string): { event: TimelineEvent; badge: ReturnType<t
 
 function anchorExists(wlId: string): boolean {
   const l = lanes.value.find((x) => x.wl.id === wlId)
-  return l?.anchorEventId ? (store.current?.events ?? []).some((e) => e.id === l.anchorEventId) : true
+  // 锚点须存在且已定时；分叉点移至草稿箱（time===null）与 fork.ts 的 forkBroken 同语义
+  return l?.anchorEventId
+    ? (store.current?.events ?? []).some((e) => e.id === l.anchorEventId && e.time !== null)
+    : true
 }
 
 const drafts = computed(() => (store.current?.events ?? []).filter((e) => e.worldlineId === null))

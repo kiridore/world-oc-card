@@ -229,8 +229,10 @@ function save(): void {
 }
 
 function toDraft(): void {
-  if (!draft.value) return
+  if (!draft.value || !store.current) return
+  // 镜像 save() 的草稿分支：先放回草稿（捕获原线重编号），再全字段持久化（含非时间编辑）
   store.moveToDraft(draft.value.id)
+  store.upsertEvent({ ...JSON.parse(JSON.stringify(draft.value)), worldlineId: null, time: null, rank: 0 })
   emit('close')
   message.success('已放回草稿箱')
 }
