@@ -1,7 +1,7 @@
 # AI 开发知识库（Knowledge Base）
 
 > 供后续 AI 协作者深度开发调用：术语、机制、坑、SOP 一站式速查。文件定位用 [MAP.md](./MAP.md)，产品/数据/视觉权威定义在 [DESIGN.md](../DESIGN.md)，验收标准在 [DEV_PLAN.md](../DEV_PLAN.md)。
-> 当前版本对齐：v2.3.6 · 单测 91 · E2E 16 用例 ×3 浏览器。
+> 当前版本对齐：3.0.0 · 单测 90 · E2E 15 用例 ×3 浏览器。
 
 ---
 
@@ -202,12 +202,12 @@ STEPS: v0（关系内联 type/directed）→ v1（relationTypes + directed）→
 ## 7. 验证命令速查（质量门禁）
 
 ```bash
-npm run test           # 91 单测全绿（node + fake-indexeddb）
+npm run test           # 90 单测全绿（node + fake-indexeddb）
 npm run coverage       # storage/utils/schemas：lines≥70% functions≥70% statements≥70% branches≥60%
 npm run check:tokens   # G10/G13 阻塞：token 齐全 + chrome S≤40% + 白名单外零色值
 npm run lint           # 0 error（8 条已知 unused-vars warning 勿新增）
 npm run build          # vue-tsc --noEmit + vite build（类型错误即失败）
-npx playwright test    # 16 用例 ×3 浏览器 = 48 执行（发布前提；先 build）
+npx playwright test    # 15 用例 ×3 浏览器 = 45 执行（发布前提；先 build）
 ```
 
 ---

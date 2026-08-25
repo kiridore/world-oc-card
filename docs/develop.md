@@ -114,10 +114,10 @@ npm run coverage       # 覆盖率（数据层/纯函数 ≥70% 门槛）
 npm run check:tokens   # 颜色纪律（阻塞）
 npm run lint           # 0 error / 8 条已知 warning
 npm run build          # vue-tsc --noEmit + vite build
-npx playwright test    # E2E：16 用例 × chromium/firefox/msedge = 48 执行（矩阵全过是发布前提）
+npx playwright test    # E2E：15 用例 × chromium/firefox/msedge = 45 执行（矩阵全过是发布前提）
 ```
 
-- 单测覆盖：schemas / storage（dexie 写钩子断言单记录写）/ zip 往返深比较 / migration / template / markdown / integrity 级联 / calendar / fork 继承语义 / colors 对比度 / mdExport / snapshot；
+- 单测覆盖：schemas / storage（dexie 写钩子断言单记录写）/ zip 往返深比较 / migration / template / markdown / integrity 级联 / branchOrder（替代旧 calendar/timelineOrder）/ fork 继承语义 / colors 对比度 / mdExport / snapshot；
 - 行为变更后更新 `docs/acceptance/RELEASE.md` 的迭代验收记录（附录 B）；- 人工走查用生产 preview（`npx vite preview --port 4288`），不要用 dev server 验收（G1）。
 
 ## 6. 发布流程

@@ -2,7 +2,7 @@
 
 > 用途：给人类与 AI 协作者一份"文件 → 职责 → 关联"的完整地图，快速定位任何功能/规则/坑对应哪些文件。
 > 配套知识库：[KNOWLEDGE_BASE.md](./KNOWLEDGE_BASE.md)（深度机制、术语、变更 SOP）。
-> 当前版本对齐：v2.3.6 · 架构：Vue 3 + TS 纯静态 SPA + IndexedDB(dexie) + zip 导入导出。
+> 当前版本对齐：3.0.0 · 架构：Vue 3 + TS 纯静态 SPA + IndexedDB(dexie) + zip 导入导出。
 
 ---
 
@@ -69,7 +69,7 @@ utils/（纯函数，无 Vue 依赖，全部可单测）
 
 | 文件 | 职责 | 关键内容 |
 |------|------|----------|
-| `src/types/index.ts` | 全部实体 TS 类型（与 DESIGN §2/§3 一一对应） | `Character/CodexEntry/TimelineEvent/Worldline/Relation/Template/ProjectData...`；`CURRENT_SCHEMA_VERSION = 2` |
+| `src/types/index.ts` | 全部实体 TS 类型（与 DESIGN §2/§3 一一对应） | `Character/CodexEntry/TimelineEvent/Worldline/Relation/Template/ProjectData...`；`CURRENT_SCHEMA_VERSION = 3` |
 | `src/schemas/index.ts` | zod strict 校验；zip 各文件形状；**legacy 格式 schema**（迁移输入） | `fieldBlockSchema`（discriminatedUnion 七种块，z.lazy 支持 group 嵌套）；`parseWith()` 统一解析入口 |
 | `src/data/builtinTemplates.ts` | 内置示例模板 | 基础角色卡/详细角色卡/地点条目（fixed id：`tpl-basic-character` 等） |
 
@@ -81,7 +81,7 @@ utils/（纯函数，无 Vue 依赖，全部可单测）
 | `db.ts` | dexie 表定义（8 表 = §3.1 文件夹布局） | 实体行带 `projectId`（索引用，内存态/zip 无此字段，仓库层增删） |
 | `local.ts` | LocalRepository（IndexedDB 实现） | **`plain()` 剥离 Pinia Proxy**（DataCloneError 坑）；写钩子事务；loadProject 升级回写旧数据；exportZip 排除孤儿资产 |
 | `zip.ts` | buildZip/parseZip（fflate，纯函数） | 逐文件容错解析（M1-E1）；project.json/settings.json 损坏拒绝，实体文件损坏跳过 |
-| `migration.ts` | schemaVersion 步进迁移管道 | `STEPS: {0: v0toV1, 1: v1toV2}`；返回 warnings；zip 导入与 loadProject 双通道执行 |
+| `migration.ts` | schemaVersion 步进迁移管道 | `STEPS: {0: v0toV1, 1: v1toV2, 2: v2toV3}`；返回 warnings；zip 导入与 loadProject 双通道执行 |
 
 ### 3.3 状态层（stores/ + composables/）
 
