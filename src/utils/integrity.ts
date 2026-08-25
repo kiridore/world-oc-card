@@ -3,10 +3,16 @@
 import type { FieldBlock, ProjectData, TimelineEvent } from '@/types'
 
 export interface RefHit {
-  kind: 'event-participant' | 'relation' | 'link-block' | 'event-location' | 'codex-link' | 'causal-link' | 'fork-point'
+  kind: 'event-participant' | 'relation' | 'link-block' | 'event-related' | 'codex-link' | 'fork-point'
   /** 引用发生的位置描述（UI 展示用） */
   where: string
   id: string
+}
+
+/** 势力条目 id 集合：codexTypes 中 key==='faction' 的类型下辖条目 */
+function factionIds(data: ProjectData): Set<string> {
+  const factionTypeIds = new Set(data.settings.codexTypes.filter((t) => t.key === 'faction').map((t) => t.id))
+  return new Set(data.codex.filter((c) => factionTypeIds.has(c.typeId)).map((c) => c.id))
 }
 
 function walkBlocks(blocks: FieldBlock[], fn: (b: FieldBlock, path: number[]) => void, path: number[] = []): void {
@@ -45,7 +51,12 @@ export function codexReferences(data: ProjectData, entryId: string): RefHit[] {
   const entry = data.codex.find((c) => c.id === entryId)
   const name = entry?.name ?? entryId
   for (const e of data.events) {
-    if (e.locationId === entryId) hits.push({ kind: 'event-location', where: `事件「${e.title}」的地点`, id: e.id })
+    if (e.participantIds.includes(entryId)) {
+      hits.push({ kind: 'event-participant', where: `事件「${e.title}」的参与者`, id: e.id })
+    }
+    if (e.relatedCodexIds.includes(entryId)) {
+      hits.push({ kind: 'event-related', where: `事件「${e.title}」的百科关联`, id: e.id })
+    }
   }
   for (const c of data.codex) {
     if (c.id !== entryId && c.content.includes(`[[${name}]]`)) {
@@ -65,9 +76,6 @@ export function codexReferences(data: ProjectData, entryId: string): RefHit[] {
 /** 谁引用了这个事件 */
 export function eventReferences(data: ProjectData, eventId: string): RefHit[] {
   const hits: RefHit[] = []
-  for (const e of data.events) {
-    if (e.causalLinks.includes(eventId)) hits.push({ kind: 'causal-link', where: `事件「${e.title}」的因果连线`, id: e.id })
-  }
   for (const w of data.settings.worldlines) {
     if (w.forkPointEventId === eventId) {
       hits.push({ kind: 'fork-point', where: `世界线「${w.name}」的分叉点（删除后该线标记分叉点失效）`, id: w.id })
@@ -102,10 +110,13 @@ export function removeCharacterCascade(data: ProjectData, characterId: string): 
   data.characters = data.characters.filter((c) => c.id !== characterId)
 }
 
-/** 级联删除百科条目（M3-E2）：清 locationId / [[名]] 链接转占位 / link 块 */
+/** 级联删除百科条目（M3-E2）：清事件参与者/百科关联 / [[名]] 链接转占位 / link 块 */
 export function removeCodexCascade(data: ProjectData, entryId: string): void {
   const name = data.codex.find((c) => c.id === entryId)?.name ?? ''
-  for (const e of data.events) if (e.locationId === entryId) e.locationId = null
+  for (const e of data.events) {
+    e.participantIds = e.participantIds.filter((p) => p !== entryId)
+    e.relatedCodexIds = e.relatedCodexIds.filter((r) => r !== entryId)
+  }
   for (const c of data.codex) {
     if (c.id === entryId) continue
     if (name && c.content.includes(`[[${name}]]`)) {
@@ -122,11 +133,8 @@ export function removeCodexCascade(data: ProjectData, entryId: string): void {
   data.codex = data.codex.filter((c) => c.id !== entryId)
 }
 
-/** 级联删除事件（M4）：清 causalLinks / fork 点置失效（世界线保留，forkPointEventId=null）*/
+/** 级联删除事件（M4）：fork 点置失效（世界线保留，forkPointEventId=null）*/
 export function removeEventCascade(data: ProjectData, eventId: string): void {
-  for (const e of data.events) {
-    if (e.causalLinks.includes(eventId)) e.causalLinks = e.causalLinks.filter((l) => l !== eventId)
-  }
   for (const w of data.settings.worldlines) {
     if (w.forkPointEventId === eventId) w.forkPointEventId = null
   }
@@ -172,11 +180,13 @@ export function scanBrokenReferences(data: ProjectData): BrokenRef[] {
   const worldlineIds = new Set(data.settings.worldlines.map((w) => w.id))
   const relationTypeIds = new Set(data.settings.relationTypes.map((t) => t.id))
 
+  const factions = factionIds(data)
   for (const e of data.events as TimelineEvent[]) {
-    if (!worldlineIds.has(e.worldlineId)) out.push({ type: '事件', where: `事件「${e.title}」`, detail: '所属世界线不存在' })
-    if (e.locationId && !codexIds.has(e.locationId)) out.push({ type: '事件', where: `事件「${e.title}」`, detail: '地点条目不存在' })
-    for (const p of e.participantIds) if (!charIds.has(p)) out.push({ type: '事件', where: `事件「${e.title}」`, detail: `参与者 ${p} 不存在` })
-    for (const l of e.causalLinks) if (!eventIds.has(l)) out.push({ type: '事件', where: `事件「${e.title}」`, detail: `因果目标 ${l} 不存在` })
+    if (e.worldlineId && !worldlineIds.has(e.worldlineId)) out.push({ type: '事件', where: `事件「${e.title}」`, detail: '所属世界线不存在' })
+    for (const p of e.participantIds) {
+      if (!charIds.has(p) && !factions.has(p)) out.push({ type: '事件', where: `事件「${e.title}」`, detail: `参与者 ${p} 不存在或非势力条目` })
+    }
+    for (const r of e.relatedCodexIds) if (!codexIds.has(r)) out.push({ type: '事件', where: `事件「${e.title}」`, detail: `百科关联 ${r} 不存在` })
   }
   for (const r of data.relations) {
     if (!charIds.has(r.from) || !charIds.has(r.to)) out.push({ type: '关系', where: `关系边「${r.id}」`, detail: '端点角色不存在' })

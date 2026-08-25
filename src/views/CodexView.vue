@@ -588,7 +588,7 @@ function confirmDelete(): void {
     negativeText: '取消',
     onPositiveClick: async () => {
       const data = store.current!
-      const touchedEvents = data.events.filter((e) => e.locationId === targetId).map((e) => e.id)
+      const touchedEvents = data.events.filter((e) => e.participantIds.includes(targetId) || e.relatedCodexIds.includes(targetId)).map((e) => e.id)
       const touchedCodex = hits.filter((h) => h.kind === 'codex-link').map((h) => h.id)
       const touchedChars = hits.filter((h) => h.kind === 'link-block').map((h) => h.id)
       removeCodexCascade(data, targetId)
@@ -631,7 +631,7 @@ function createFromLink(): void {
 }
 
 function jump(h: RefHit): void {
-  if (h.kind === 'event-location' || h.kind === 'causal-link') {
+  if (h.kind === 'event-related' || h.kind === 'event-participant') {
     router.push('/timeline')
     message.info('已跳转时间轴')
   } else if (h.kind === 'link-block') {

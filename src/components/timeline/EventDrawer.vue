@@ -232,7 +232,6 @@ function confirmDelete(): void {
     onPositiveClick: async () => {
       const data = store.current!
       const touched = new Set<string>()
-      for (const e of data.events) if (e.causalLinks.includes(targetId)) touched.add(e.id)
       for (const w of data.settings.worldlines) if (w.forkPointEventId === targetId) touched.add(w.id)
       removeEventCascade(data, targetId)
       store.mark({ kind: 'event', id: targetId })
