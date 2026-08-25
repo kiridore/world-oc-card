@@ -137,6 +137,7 @@
             :d="c.d"
             :stroke="c.color"
             fill="none"
+            :class="c.kind"
           />
         </svg>
         <div
@@ -163,7 +164,7 @@
               分叉点失效
             </n-tag>
           </div>
-          <div class="lane-cards">
+          <div class="lane-cards" :style="laneOffsetStyle(l.wl.id)">
             <n-empty
               v-if="branchEvents(l.wl.id).length === 0"
               size="small"
@@ -428,9 +429,11 @@ function onDrop(e: DragEvent, lineId: string, targetEventId: string): void {
   dragState.value = null
 }
 
-// ---- fork 连接线（SVG 覆盖层，DOM 量测 + ResizeObserver）----
-interface Connector { id: string; d: string; color: string }
+// ---- fork 连接线 + 背骨线 + 分叉偏移（SVG 覆盖层 + inline padding，DOM 量测 + ResizeObserver）----
+interface Connector { id: string; d: string; color: string; kind: 'fork' | 'backbone' }
 const connectors = ref<Connector[]>([])
+/** IF 线首卡偏移（内容系 px）：与锚点卡左缘（横）/上缘（纵）对齐 */
+const laneOffsets = ref<Record<string, number>>({})
 
 function refreshConnectors(): void {
   if (!lanesEl.value) return
@@ -441,6 +444,7 @@ function refreshConnectors(): void {
   overlayW.value = lanesEl.value.scrollWidth
   overlayH.value = lanesEl.value.scrollHeight
   const out: Connector[] = []
+  const offsets: Record<string, number> = {}
   const hMode = orientation.value === 'h'
   for (const l of lanes.value) {
     const pid = l.wl.parentWorldlineId
@@ -457,9 +461,33 @@ function refreshConnectors(): void {
     const d = hMode
       ? `M ${x1} ${y1} C ${x1} ${(y1 + y2) / 2}, ${x2} ${(y1 + y2) / 2}, ${x2} ${y2}`
       : `M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`
-    out.push({ id: l.wl.id, d, color: lineColor(l.wl.color) })
+    out.push({ id: `fork:${l.wl.id}`, d, color: lineColor(l.wl.color), kind: 'fork' })
+    // 分叉相对定位：首卡起缘对齐锚点卡起缘（仅当线内有卡片；空轨不偏移）
+    if (branchEvents(l.wl.id).length > 0) {
+      offsets[l.wl.id] = hMode ? pr.left - originX : pr.top - originY
+    }
+  }
+  // 背骨：同线相邻卡间隙段（各自边缘中点相连；拖拽中的卡排除防跳线）
+  for (const l of lanes.value) {
+    const cards = lanesEl.value.querySelectorAll<HTMLElement>(`[data-lane="${l.wl.id}"] .card:not(.dragging)`)
+    if (cards.length < 2) continue
+    for (let i = 0; i < cards.length - 1; i++) {
+      const a = cards[i].getBoundingClientRect()
+      const b = cards[i + 1].getBoundingClientRect()
+      const [x, y, ex, ey] = hMode
+        ? [a.left - originX + a.width, a.top - originY + a.height / 2, b.left - originX, b.top - originY + b.height / 2]
+        : [a.left - originX + a.width / 2, a.top - originY + a.height, b.left - originX + b.width / 2, b.top - originY]
+      out.push({ id: `backbone:${l.wl.id}:${i}`, d: `M ${x} ${y} L ${ex} ${ey}`, color: lineColor(l.wl.color), kind: 'backbone' })
+    }
   }
   connectors.value = out
+  laneOffsets.value = offsets
+}
+
+function laneOffsetStyle(wlId: string): { paddingLeft?: string; paddingTop?: string } | undefined {
+  const o = laneOffsets.value[wlId]
+  if (!o) return undefined
+  return orientation.value === 'h' ? { paddingLeft: `${o}px` } : { paddingTop: `${o}px` }
 }
 
 let resizeObs: ResizeObserver | null = null
@@ -528,13 +556,15 @@ watch(
   display: flex; align-content: flex-start; gap: var(--space-3);
 }
 .fork-overlay { position: absolute; top: 0; left: 0; pointer-events: none; }
-.fork-overlay path { stroke-width: 1.5; stroke-dasharray: 4 3; opacity: 0.8; }
+.fork-overlay path { stroke-width: 1.5; opacity: 0.8; }
+.fork-overlay path.fork { stroke-dasharray: 4 3; opacity: 0.7; }
+.fork-overlay path.backbone { opacity: 0.6; }
 
-/* 横向（默认）：泳道为整行，卡片从左向右流 */
+/* 横向（默认）：泳道为整行，卡片从左向右流；面板统一横滚（lane 不设独立 overflow） */
 .timeline.h .lanes { flex-direction: column; }
 .timeline.h .lane { display: flex; flex-direction: column; }
-.timeline.h .lane { flex: none; width: 100%; }
-.timeline.h .lane-cards { display: flex; gap: var(--space-2); overflow-x: auto; padding-bottom: 4px; }
+.timeline.h .lane { flex: none; width: max-content; min-width: 100%; }
+.timeline.h .lane-cards { display: flex; gap: var(--space-2); padding-bottom: 4px; width: max-content; min-width: 100%; }
 
 /* 纵向：泳道为列，卡片从上向下流 */
 .timeline.v .lanes { flex-direction: row; align-items: flex-start; }
