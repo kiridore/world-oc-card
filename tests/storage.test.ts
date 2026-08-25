@@ -3,6 +3,7 @@ import { WocDB } from '../src/storage/db'
 import { LocalRepository } from '../src/storage/local'
 import { DirtyTracker, attachWriteCounters } from '../src/utils/dirty'
 import { buildZip, parseZip } from '../src/storage/zip'
+import { migrateProject } from '../src/storage/migration'
 import type { ProjectData } from '../src/types'
 import { uuid, nowIso } from '../src/utils/id'
 
@@ -24,6 +25,15 @@ function makeProject(name = '测试项目'): ProjectData {
     events: [
       { id: 'e1', worldlineId: 'w1', time: { mode: 'calendar', era: '通用纪年', year: '100', month: '', day: '' }, title: '建国', description: '', participantIds: ['c1'], relatedCodexIds: ['x1'], rank: 0, manualPlaced: false, collapsed: false, locked: false },
     ],
+  }
+}
+
+/** v2 旧形状事件（calendarId/value 数值纪年，含 locationId/causalLinks/canvasPos）——迁移测试夹具 */
+function legacyV2Event() {
+  return {
+    id: 'e1', worldlineId: 'w1', time: { calendarId: 'cal1', value: 100, display: '通用纪年 100 年' },
+    title: '建国', description: '', participantIds: ['c1'], locationId: 'x1', causalLinks: [],
+    collapsed: false, locked: false,
   }
 }
 
@@ -182,11 +192,12 @@ describe('M1-F6 版本迁移', () => {
     const bytes = buildZip(p, [])
     const { unzipSync, zipSync, strToU8 } = await import('fflate')
     const files: Record<string, Uint8Array> = { ...unzipSync(bytes) }
-    // 改写为 v0 形态
+    // 改写为 v0 形态（事件也降级为 v2 旧形状，否则 v2→v3 迁移会按旧字段误读 v3 事件）
     files['project.json'] = strToU8(JSON.stringify({ ...p.meta, schemaVersion: 0 }))
     files['relations.json'] = strToU8(JSON.stringify({
       relations: [{ id: 'r1', from: 'c1', to: 'c2', type: '挚友', directed: false, description: '' }],
     }))
+    files['events/e1.json'] = strToU8(JSON.stringify({ event: legacyV2Event() }))
     const res = await repo.importZip(new Blob([zipSync(files)]), 'overwrite')
     expect(res.meta.schemaVersion).toBe(3)
     const loaded = (await repo.loadProject(p.meta.id))!.data
@@ -203,6 +214,7 @@ describe('M1-F6 版本迁移', () => {
     const { unzipSync, zipSync, strToU8, strFromU8 } = await import('fflate')
     const files: Record<string, Uint8Array> = { ...unzipSync(bytes) }
     files['project.json'] = strToU8(JSON.stringify({ ...p.meta, schemaVersion: 1 }))
+    files['events/e1.json'] = strToU8(JSON.stringify({ event: legacyV2Event() }))
     const settings = JSON.parse(strFromU8(files['settings.json']))
     settings.calendars = [{ id: 'cal1', name: '通用纪年', offset: 0, unitYears: 1 }]
     settings.relationTypes = [
@@ -213,31 +225,40 @@ describe('M1-F6 版本迁移', () => {
     const res = await repo.importZip(new Blob([zipSync(files)]), 'overwrite')
     expect(res.meta.schemaVersion).toBe(3)
     expect(res.warnings.some((w) => w.includes('v1 迁移到 v2'))).toBe(true)
+    expect(res.warnings.some((w) => w.includes('v2 迁移到 v3'))).toBe(true)
     const loaded = (await repo.loadProject(p.meta.id))!.data
     expect(loaded.settings.relationTypes.find((t) => t.name === '师徒')!.arrow).toBe('single')
     expect(loaded.settings.relationTypes.find((t) => t.name === '同盟')!.arrow).toBe('none')
+    // 事件随迁移转为字符串纪年（era=历法名, year=String(value)）
+    const e1 = loaded.events.find((e) => e.id === 'e1')!
+    expect(e1.time).toEqual({ mode: 'calendar', era: '通用纪年', year: '100', month: '', day: '' })
   })
 
-  it('存量 v1 数据（直接写库，非 zip 导入）在 loadProject 时升级并回写', async () => {
+  it('存量 v1 数据（直接写库，非 zip 导入）在 loadProject 时升级并回写到 v3', async () => {
     const p = makeProject()
     p.relations.push({ id: 'r-arrow', from: 'c1', to: 'c2', typeId: 'rt-old-1', description: '' })
     await repo.createProject('T', p)
-    // 手工把库内数据降级为 v1 形态
+    // 手工把库内数据降级为 v1 形态（事件也降级为 v2 旧形状，走完整 1→2→3 管道）
     await db.projects.put({ ...p.meta, schemaVersion: 1 })
     await db.settings.put({
       projectId: p.meta.id,
+      calendars: [{ id: 'cal1', name: '通用纪年', offset: 0, unitYears: 1 }],
       relationTypes: [
         { id: 'rt-old-1', name: '宿敌', color: '#c2917f', directed: true },
       ] as never,
       codexTypes: p.settings.codexTypes,
       worldlines: p.settings.worldlines,
-    })
+    } as never)
+    await db.events.put({ projectId: p.meta.id, ...legacyV2Event() } as never)
     const loaded = (await repo.loadProject(p.meta.id))!.data
-    expect(loaded.meta.schemaVersion).toBe(2)
+    expect(loaded.meta.schemaVersion).toBe(3)
     expect(loaded.settings.relationTypes[0].arrow).toBe('single')
-    // 回写持久化：再次加载仍是 v2
+    const e1 = loaded.events.find((e) => e.id === 'e1')!
+    expect(e1.time).toEqual({ mode: 'calendar', era: '通用纪年', year: '100', month: '', day: '' })
+    expect(e1.rank).toBe(0)
+    // 回写持久化：再次加载仍是 v3
     const again = (await repo.loadProject(p.meta.id))!.data
-    expect(again.meta.schemaVersion).toBe(2)
+    expect(again.meta.schemaVersion).toBe(3)
     expect(again.settings.relationTypes[0].arrow).toBe('single')
   })
 })
@@ -286,6 +307,82 @@ describe('M1-P1/P2 性能（fake-indexeddb 规模演练）', () => {
     const tSave = performance.now() - t1
     expect(tLoad).toBeLessThan(1000)
     expect(tSave).toBeLessThan(100)
+  })
+})
+
+describe('M1-F6 v2→v3 迁移（字符串纪年）', () => {
+  it('migrateProject：数值纪元 → 双模式字符串；locationId 并入；因果/画布丢弃；草稿置空；rank 推导；历法删除', () => {
+    // v2 旧形状内联字面量（Calendar 类型已删，用局部形状 + 断言约束）
+    const v2Data = {
+      meta: { id: 'p', name: '迁移', schemaVersion: 2, createdAt: nowIso(), updatedAt: nowIso() },
+      settings: {
+        calendars: [
+          { id: 'cal-year', name: '第三纪元', offset: 100, unitYears: 1 },
+          { id: 'cal-month', name: '星历', offset: 0, unitYears: 1 / 12 },
+        ],
+        relationTypes: [], codexTypes: [],
+        worldlines: [
+          { id: 'w1', name: '主线', parentWorldlineId: null, forkPointEventId: null, color: '#7d9cb5', status: 'active', order: 0 },
+          { id: 'w2', name: 'IF 线', parentWorldlineId: 'w1', forkPointEventId: 'e1', color: '#8fae8b', status: 'active', order: 1 },
+        ],
+      },
+      relations: [], templates: [], characters: [], codex: [],
+      events: [
+        { id: 'e1', worldlineId: 'w1', time: { calendarId: 'cal-year', value: 10, display: '第三纪元 10 年' }, title: '建国', description: '', participantIds: [], locationId: 'loc1', causalLinks: ['e2'], canvasPos: { x: 1, y: 2 }, collapsed: false, locked: false },
+        { id: 'e2', worldlineId: 'w1', time: { calendarId: 'cal-year', value: 5, display: '第三纪元 5 年' }, title: '更早', description: '', participantIds: [], locationId: null, causalLinks: [], collapsed: false, locked: false },
+        { id: 'e3', worldlineId: 'w1', time: { calendarId: 'cal-year', value: 30, display: '第三纪元 30 年' }, title: '更晚', description: '', participantIds: [], locationId: null, causalLinks: [], collapsed: false, locked: false },
+        { id: 'e4', worldlineId: 'w2', time: { calendarId: 'cal-month', value: 18, display: '星历 18 月' }, title: '月历事件', description: '', participantIds: [], locationId: null, causalLinks: [], collapsed: false, locked: false },
+        { id: 'e5', worldlineId: 'w1', time: null, title: '草稿', description: '', participantIds: [], locationId: null, causalLinks: [], collapsed: false, locked: false },
+      ],
+    }
+    const res = migrateProject(v2Data as unknown as ProjectData)
+    expect(res.data.meta.schemaVersion).toBe(3)
+    expect(res.warnings.some((w) => w.includes('v2 迁移到 v3'))).toBe(true)
+    expect(res.warnings.some((w) => w.includes('causalLinks'))).toBe(true)
+
+    const ev = (id: string) => res.data.events.find((e) => e.id === id)!
+    // 年历法 → calendar 模式：era=历法名, year=String(value)
+    expect(ev('e1').time).toEqual({ mode: 'calendar', era: '第三纪元', year: '10', month: '', day: '' })
+    // 月历法 → custom 模式：text=旧 display 保真
+    expect(ev('e4').time).toEqual({ mode: 'custom', text: '星历 18 月' })
+    // 旧草稿 → worldlineId null && time null
+    expect(ev('e5').worldlineId).toBeNull()
+    expect(ev('e5').time).toBeNull()
+    // locationId 并入 relatedCodexIds
+    expect(ev('e1').relatedCodexIds).toEqual(['loc1'])
+    // causalLinks / canvasPos 键不存在
+    expect('causalLinks' in ev('e1')).toBe(false)
+    expect('canvasPos' in ev('e1')).toBe(false)
+    // settings.calendars 键被删除
+    expect((res.data.settings as Record<string, unknown>).calendars).toBeUndefined()
+    // rank：w1 按绝对纪元升序 5<10<30 → e2=0, e1=1, e3=2
+    const w1 = res.data.events.filter((e) => e.worldlineId === 'w1').sort((a, b) => a.rank - b.rank)
+    expect(w1.map((e) => e.id)).toEqual(['e2', 'e1', 'e3'])
+    expect(ev('e4').rank).toBe(0)
+    expect(ev('e1').manualPlaced).toBe(false)
+  })
+
+  it('v2 zip（旧字段形状）导入零丢失：迁移到 v3 且事件数不变', async () => {
+    const p = makeProject()
+    const bytes = buildZip(p, [])
+    const { unzipSync, zipSync, strToU8, strFromU8 } = await import('fflate')
+    const files: Record<string, Uint8Array> = { ...unzipSync(bytes) }
+    files['project.json'] = strToU8(JSON.stringify({ ...p.meta, schemaVersion: 2 }))
+    // settings 恢复 v2 形状（含 calendars，relationTypes 已为 arrow 三态）
+    const settings = JSON.parse(strFromU8(files['settings.json']))
+    settings.calendars = [{ id: 'cal1', name: '通用纪年', offset: 0, unitYears: 1 }]
+    files['settings.json'] = strToU8(JSON.stringify(settings))
+    // 事件恢复 v2 形状
+    files['events/e1.json'] = strToU8(JSON.stringify({ event: legacyV2Event() }))
+    const res = await repo.importZip(new Blob([zipSync(files)]), 'overwrite')
+    expect(res.meta.schemaVersion).toBe(3)
+    expect(res.warnings.some((w) => w.includes('v2 迁移到 v3'))).toBe(true)
+    const loaded = (await repo.loadProject(p.meta.id))!.data
+    expect(loaded.events).toHaveLength(1)
+    const e1 = loaded.events[0]
+    expect(e1.time).toEqual({ mode: 'calendar', era: '通用纪年', year: '100', month: '', day: '' })
+    expect(e1.relatedCodexIds).toEqual(['x1'])
+    expect(e1.rank).toBe(0)
   })
 })
 

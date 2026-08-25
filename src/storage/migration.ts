@@ -1,8 +1,14 @@
 // schemaVersion 迁移管道（M1-F6）：按版本逐步升级，v(N) → v(N+1)
-import type { ProjectData, Relation, RelationType } from '@/types'
+import type { ProjectData, Relation, RelationType, TimelineEvent } from '@/types'
 import { CURRENT_SCHEMA_VERSION } from '@/types'
+import { legacyEventV2Schema } from '@/schemas'
 import { uuid } from '@/utils/id'
 import { palettePick } from '@/utils/colors'
+import type { z } from 'zod'
+
+type LegacyEventV2 = z.infer<typeof legacyEventV2Schema>
+
+interface LegacyCalendar { id: string; name: string; offset: number; unitYears: number }
 
 interface OldRelation {
   id: string; from: string; to: string; type: string; directed: boolean; description: string
@@ -43,9 +49,62 @@ function v1toV2(data: ProjectData, warnings: string[]): ProjectData {
   return { ...data, settings: { ...data.settings, relationTypes } }
 }
 
+/** v2 → v3：数值纪元时间 → 字符串纪年双模式；locationId 并入 relatedCodexIds；
+ *  causalLinks/canvasPos 丢弃；旧草稿置 worldlineId=null；rank 按旧绝对纪元逐线推导。 */
+function v2toV3(data: ProjectData, warnings: string[]): ProjectData {
+  const settings = data.settings as unknown as { calendars?: LegacyCalendar[] }
+  // 兼容无历法的存量/测试数据（v3 形状 settings 过迁移管道）：无历法 → era 留空兜底
+  const calById = new Map((settings.calendars ?? []).map((c) => [c.id, c]))
+  const oldEvents = data.events as unknown as LegacyEventV2[]
+
+  // rank：逐线按旧绝对纪元（value×unitYears+offset）升序；同刻保持原数组顺序
+  const rankOf = new Map<string, number>()
+  const byLine = new Map<string, LegacyEventV2[]>()
+  for (const e of oldEvents) {
+    if (!e.time) continue
+    if (!byLine.has(e.worldlineId)) byLine.set(e.worldlineId, [])
+    byLine.get(e.worldlineId)!.push(e)
+  }
+  for (const [, evs] of byLine) {
+    const abs = (e: LegacyEventV2) => {
+      const c = e.time ? calById.get(e.time.calendarId) : undefined
+      return e.time ? e.time.value * (c?.unitYears ?? 1) + (c?.offset ?? 0) : 0
+    }
+    const sorted = [...evs].sort((a, b) => abs(a) - abs(b))
+    sorted.forEach((e, i) => rankOf.set(e.id, i))
+  }
+
+  const events: TimelineEvent[] = oldEvents.map((e) => {
+    let time: TimelineEvent['time'] = null
+    if (e.time) {
+      const c = calById.get(e.time.calendarId)
+      time = c && c.unitYears < 1
+        ? { mode: 'custom', text: e.time.display || `${c.name} ${e.time.value} 月` }
+        : { mode: 'calendar', era: c?.name ?? '', year: String(e.time.value), month: '', day: '' }
+    }
+    return {
+      id: e.id,
+      worldlineId: e.time ? e.worldlineId : null,
+      time,
+      title: e.title,
+      description: e.description,
+      participantIds: e.participantIds,
+      relatedCodexIds: e.locationId ? [e.locationId] : [],
+      rank: e.time ? (rankOf.get(e.id) ?? 0) : 0,
+      manualPlaced: false,
+      collapsed: e.collapsed,
+      locked: e.locked,
+    }
+  })
+  delete (data.settings as Record<string, unknown>).calendars
+  warnings.push('数据已从 v2 迁移到 v3（数值纪年 → 字符串纪年；因果连线 causalLinks 已移除）')
+  return { ...data, settings: data.settings, events }
+}
+
 const STEPS: Record<number, (d: ProjectData, w: string[]) => ProjectData> = {
   0: v0toV1,
   1: v1toV2,
+  2: v2toV3,
 }
 
 export function migrateProject(data: ProjectData): { data: ProjectData; warnings: string[] } {

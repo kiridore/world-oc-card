@@ -3,9 +3,11 @@ import { zipSync, strToU8, strFromU8, unzipSync } from 'fflate'
 import type { AssetMeta, ProjectData } from '@/types'
 import { CURRENT_SCHEMA_VERSION } from '@/types'
 import {
-  parseWith, projectMetaSchema, settingsSchema, legacySettingsV1Schema, relationsFileSchema, legacyRelationsFileSchema,
+  parseWith, projectMetaSchema, settingsSchema, legacySettingsV1Schema, legacySettingsV2Schema,
+  relationsFileSchema, legacyRelationsFileSchema, legacyEventV2Schema,
   templatesFileSchema, charactersFileSchema, codexFileSchema, eventsFileSchema, assetsIndexFileSchema,
 } from '@/schemas'
+import { z } from 'zod'
 import { migrateProject } from './migration'
 
 export interface ZipAsset { meta: Omit<AssetMeta, 'projectId'>; bytes: Uint8Array }
@@ -47,12 +49,14 @@ export function parseZip(bytes: Uint8Array): ParseZipResult {
 
   const pmetaR = parseWith(projectMetaSchema, JSON.parse(strFromU8(files['project.json'])))
   if (!pmetaR.ok) throw new Error(`project.json 校验失败：${pmetaR.error}`)
-  // v2 settings（arrow 三态）；v1 旧形态（directed 布尔）也接受，交迁移管道 v1→v2 统一转换
+  // settings 三级回退：v3（无 calendars）→ v2（含 calendars，arrow 三态）→ v1（directed 布尔），交迁移管道统一升级
   const settingsJson = JSON.parse(strFromU8(files['settings.json']))
   const settingsR = parseWith(settingsSchema, settingsJson)
-  const legacySettingsR = settingsR.ok ? null : parseWith(legacySettingsV1Schema, settingsJson)
+  const legacyV2SettingsR = settingsR.ok ? null : parseWith(legacySettingsV2Schema, settingsJson)
+  const legacySettingsR = legacyV2SettingsR?.ok ? null : parseWith(legacySettingsV1Schema, settingsJson)
   let settingsData: ProjectData['settings']
   if (settingsR.ok) settingsData = settingsR.data
+  else if (legacyV2SettingsR?.ok) settingsData = legacyV2SettingsR.data as unknown as ProjectData['settings']
   else if (legacySettingsR?.ok) settingsData = legacySettingsR.data as unknown as ProjectData['settings']
   else throw new Error(`settings.json 校验失败：${settingsR.error}`)
 
@@ -90,8 +94,11 @@ export function parseZip(bytes: Uint8Array): ParseZipResult {
   })
   readDir('events', (path, json) => {
     const r = parseWith(eventsFileSchema, json)
-    if (r.ok) events.push(r.data.event)
-    else warnings.push(`${path} 校验失败已跳过：${r.error}`)
+    if (r.ok) { events.push(r.data.event); return }
+    // v0–v2 旧格式（zip 内同样为 { event } 包裹形状），交迁移管道
+    const legacy = parseWith(z.object({ event: legacyEventV2Schema }), json)
+    if (legacy.ok) { events.push(legacy.data.event as unknown as ProjectData['events'][number]); return }
+    warnings.push(`${path} 校验失败已跳过：${r.error}`)
   })
 
   const assets: ZipAsset[] = []

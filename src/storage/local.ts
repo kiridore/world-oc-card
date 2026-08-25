@@ -71,9 +71,19 @@ export class LocalRepository implements Repository {
       const { projectId: _pid, ...rest } = r
       return rest
     }
+    // 旧版本存量数据（非 zip 导入路径）在加载时升级并回写，如 v1 directed → v2 arrow、v2 数值纪年 → v3 字符串纪年
+    // calendars 为 v2 及更早的 settings 字段：加载时穿行给迁移管道（迁移完成后删除），v3 行无此键
+    const rawSettings = settingsRow as unknown as { calendars?: unknown } | undefined
     let data: ProjectData = {
       meta,
-      settings: settingsRow ? { relationTypes: settingsRow.relationTypes, codexTypes: settingsRow.codexTypes, worldlines: settingsRow.worldlines } : { relationTypes: [], codexTypes: [], worldlines: [] },
+      settings: settingsRow
+        ? {
+            ...(rawSettings?.calendars ? { calendars: rawSettings.calendars } : {}),
+            relationTypes: settingsRow.relationTypes,
+            codexTypes: settingsRow.codexTypes,
+            worldlines: settingsRow.worldlines,
+          } as unknown as ProjectData['settings']
+        : { relationTypes: [], codexTypes: [], worldlines: [] },
       relations: relationsRow?.relations ?? [],
       templates: templatesRow?.templates ?? [],
       characters: characters.map((c) => strip(c) as Character).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
