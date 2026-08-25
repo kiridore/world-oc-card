@@ -8,3 +8,4 @@ docs/acceptance/*.png
 *.log
 .DS_Store
 .zcode/
+.worktrees/
