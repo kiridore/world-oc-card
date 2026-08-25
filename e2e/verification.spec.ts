@@ -78,7 +78,7 @@ test('M4-E3 草稿箱：未定时进箱不进泳道；补时间入线；放回�
   await expect(page.locator('.lane-cards .card')).toHaveCount(0)
 })
 
-test('M4-F8 线内拖拽重排：HTML5 DnD 后卡片顺序交换并持久', async ({ page }) => {
+test('M4-F8 线内拖拽重排：HTML5 DnD 后卡片顺序交换', async ({ page }) => {
   await freshProject(page, 'DnD 验证')
   await page.goto('/#/timeline')
   await addTimedEvent(page, '1')

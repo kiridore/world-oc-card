@@ -37,7 +37,7 @@ world-oc-card/
 ├── playwright.config.ts     # E2E：vite preview:4173 + Chromium/Firefox/Edge 三浏览器矩阵
 ├── package.json             # 版本唯一出处（应用内版本号读它）；依赖见 KNOWLEDGE_BASE §1
 ├── src/                     # 全部业务代码（~5800 行）
-├── tests/                   # Vitest 单测（91 个，node + fake-indexeddb）
+├── tests/                   # Vitest 单测（97 个，node + fake-indexeddb）
 ├── e2e/                     # Playwright（smoke 1 + verification 13 + perf 1 = 15 用例 ×3 浏览器）
 ├── scripts/check-tokens.mjs # G10/G13 颜色纪律静态检查（阻塞门禁）
 ├── docs/                    # 本文档体系
@@ -48,7 +48,7 @@ world-oc-card/
 ### src/ 分层地图（依赖方向：上 → 下）
 
 ```
-types/index.ts（实体类型 + CURRENT_SCHEMA_VERSION=2）   ← 格式版本唯一出处
+types/index.ts（实体类型 + CURRENT_SCHEMA_VERSION=3）   ← 格式版本唯一出处
   ↓
 schemas/index.ts（zod strict 校验 + legacy 格式 schema）
   ↓
@@ -154,7 +154,7 @@ utils/（纯函数，无 Vue 依赖，全部可单测）
 
 ## 4. 测试与质量工具地图
 
-### 4.1 单测（tests/，91 个；节点环境 + fake-indexeddb）
+### 4.1 单测（tests/，97 个；节点环境 + fake-indexeddb）
 
 | 测试文件 | 覆盖 AC | 被测对象 |
 |----------|---------|----------|
@@ -182,12 +182,12 @@ utils/（纯函数，无 Vue 依赖，全部可单测）
 
 | 命令 | 门槛 | 说明 |
 |------|------|------|
-| `npm run test` | 91/91 绿 | 数据层+纯函数（node + fake-indexeddb） |
+| `npm run test` | 97/97 绿 | 数据层+纯函数（node + fake-indexeddb） |
 | `npm run coverage` | lines/functions/statements ≥70%、branches ≥60% | 范围仅 src/storage、src/utils、src/schemas |
 | `npm run check:tokens` | 阻塞 | 双主题 token 齐全、chrome 饱和度 ≤40%、**白名单外零颜色字面量** |
 | `npm run lint` | 0 error（8 已知 warning） | scripts/e2e 忽略 |
 | `npm run build` | vue-tsc 0 错误 | 类型错误即失败 |
-| `npx playwright test` | 48/48 | 需先 build；preview 起在 4173；改动后杀旧 4173 进程 |
+| `npx playwright test` | 45/45 | 需先 build；preview 起在 4173；改动后杀旧 4173 进程 |
 
 ---
 

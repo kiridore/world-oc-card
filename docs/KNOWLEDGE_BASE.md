@@ -36,7 +36,7 @@
 | **百科条目名全局唯一** | `[[条目名]]` 链接解析依赖；重名保存被阻止（A1） | DESIGN 附录 A1 |
 | **失效引用占位** | 引用目标缺失时 UI 显示占位，绝不崩溃（G5） | — |
 | **世界线（Worldline）** | 类 Git branch；第一条为主世界线（不可删）；状态 active/abandoned | DESIGN §2.4.1 |
-| **分叉（Fork）** | 在某事件创建 IF 线；`parentWorldlineId` + `forkPointEventId`；fork 点失效则继承该祖先线（v3：按父线内 rank ≤ fork 点 rank）全部定时常 | DESIGN §2.4.1、fork.ts |
+| **分叉（Fork）** | 在某事件创建 IF 线；`parentWorldlineId` + `forkPointEventId`；fork 点失效则继承该祖先线（v3：按父线内 rank ≤ fork 点 rank）全部定时事件 | DESIGN §2.4.1、fork.ts |
 | ~~**序位轴（Rank Axis）**~~（v3 已移除） | ~~时间轴 x 只表达先后：跨世界线按绝对纪元排序 dense rank~~ | ~~timelineOrder.ts（已删）~~ |
 | ~~**聚簇（Cluster）**~~（v3 已移除） | ~~同刻多事件折叠为 ×N 聚合点，点击展开~~ | v1.4.0 |
 | ~~**绝对纪元（Absolute Era）**~~（v3 已移除） | ~~`value × unitYears + offset`（历法线性换算，排序唯一依据）~~ | calendar.ts（已删） |
@@ -82,7 +82,7 @@ img 块 ──assetId──> assets 表 Blob（实体只存 assetId，永不内�
 ```
 zip 导入（parseZip → migrateProject）   ← 旧 zip 自动升级
 loadProject 读库（schemaVersion 落后 → 迁移 + writeAllRows 回写） ← 浏览器存量旧数据也升级
-STEPS: v0（关系内联 type/directed）→ v1（relationTypes + directed）→ v2（arrow 三态）
+STEPS: v0（关系内联 type/directed）→ v1（relationTypes + directed）→ v2（arrow 三态）→ v3（字符串纪年时间）
 每步返回 warnings，导入时提示用户
 ```
 
@@ -113,7 +113,7 @@ STEPS: v0（关系内联 type/directed）→ v1（relationTypes + directed）→
 ### 4.2 fork 继承语义（fork.ts 核心，v3 rank 边界）
 
 - 子线可见 = **本线自有事件** + **各祖先线按层 fork 边界（≤fork 点事件在该祖先线内的 rank）的定时事件**（v3：不再用绝对纪元）
-- boundary 取 fork 点事件在父线的 rank；fork 点缺失 → 该层失效 → **继承该祖先线全部定时常**（forkBroken=true，UI 标记「分叉点失效」）
+- boundary 取 fork 点事件在父线的 rank；fork 点缺失 → 该层失效 → **继承该祖先线全部定时事件**（forkBroken=true，UI 标记「分叉点失效」）
 - 父线 fork 之后新增的事件**不会**出现在子线（M4-F3 反复断言）
 - 级联删除世界线 = 连同全部后代线（闭包收集）+ 其事件 + 父引用置空
 
@@ -165,13 +165,13 @@ STEPS: v0（关系内联 type/directed）→ v1（relationTypes + directed）→
 
 | 位置 | 坑 |
 |------|-----|
-| TimelineView | 聚簇「收起」按钮曾是裸 `<text>` 被画布拖拽 pointer capture 吞点击（v2.3.3 修）；现在是 `g.cluster-collapse`（含透明命中圆）+ 拖拽 pointerdown 豁免 `.cluster-collapse`。**在时间轴 SVG 上新增可点击元素时注意命中区域与拖拽豁免** |
-| TimelineView | 缩放/平移对序位空间（clampSpan）；事件增删由 watch 重置全景；惯性在 `prefers-reduced-motion` 时跳过 |
-| CanvasView | Vue Flow 节点必须传 `label: e.title`（v2.3.5 bug：只传 data 渲染空白节点）；拖拽停止 → `upsertEvent` 保存 canvasPos |
+| TimelineView | ~~聚簇「收起」按钮曾是裸 `<text>` 被画布拖拽 pointer capture 吞点击（v2.3.3 修）~~ → **v3 序位轴/聚簇已移除**（泳道卡片取代） |
+| TimelineView | ~~缩放/平移对序位空间（clampSpan）；事件增删由 watch 重置全景；惯性在 `prefers-reduced-motion` 时跳过~~ → **v3 序位轴交互已移除**（`clampSpan` 仅存于 `utils/zoom.ts`，留待清理） |
+| ~~CanvasView~~（v3 已移除） | ~~Vue Flow 节点必须传 `label: e.title`（v2.3.5 bug：只传 data 渲染空白节点）；拖拽停止 → `upsertEvent` 保存 canvasPos~~ |
 | GraphView | 点阵背景跟随：监听 `aftertransform`（没有 viewportchange 事件），`getViewportByCanvas` 两点探测换算；Point 是 `[x,y]` 元组 |
 | CharactersView | 自动保存是**输入停顿 800ms 落库**（与存底层 500ms 防抖是两层）；提示节流防刷屏；编辑中切换角色自动落盘当前草稿 |
 | CodexView | `[[失效引用:名]]` 是删除级联后的残留占位语法，渲染弱化展示；`[[不存在]]` 提供"创建此条目" |
-| EventDrawer | 保存前 `suggestDisplay` 建议展示文本（`suggestDisplay(time, calendars)`） |
+| EventDrawer | 保存前用 `displayTime(time)` 生成展示文本（纪年法拼接 / 自定义原文，见 utils/branchOrder.ts） |
 
 ### 5.3 E2E 工程经验（新增 E2E 前必读）
 

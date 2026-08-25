@@ -126,8 +126,8 @@
 - ✅ G4 数据不丢失（防抖+visibilitychange/beforeunload flush+**刷新自动重开上次项目**；E2E G4 刷新后数据在）
 - ✅ G5 失效引用不崩溃（占位组件/巡检/测试多处断言）
 - ✅ G6 零 base64 内联（存储测试断言 `data:image` 计数 0）
-- ✅ G7 浏览器矩阵 **Chromium/Firefox/Edge 全过**（33/33）
-- ✅ G8 覆盖率 ≥70%（lines 88–100%）
+- ✅ G7 浏览器矩阵 **Chromium/Firefox/Edge 全过**（45/45，15 用例 × 3 浏览器）
+- ✅ G8 覆盖率 ≥70%（lines 88–100%；当前全量 93%，见总览表）
 - ✅ G9 双主题（E2E + 人工）
 - ✅ G10 无硬编码颜色/图标统一 Lucide（脚本扫描 + review）
 - ✅ G11 对比度（正文 token 计算 AA 达标；数据色 3:1 双主题测试）

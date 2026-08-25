@@ -14,9 +14,9 @@ src/
     repository.ts       Repository 接口（V2 换后端时新增 RemoteRepository 实现）
     local.ts            IndexedDB 实现（所有 put 前过 plain()，见 §3.1）
     zip.ts              项目 zip 导入导出（fflate）
-    migration.ts        schemaVersion 步进迁移管道（v0→v1→v2…）
+    migration.ts        schemaVersion 步进迁移管道（v0→v1→v2→v3）
   stores/project.ts     Pinia：内存态 + DirtyTracker 脏标记 + 500ms 防抖 flush
-  views/                七个路由视图（Home/Characters/Codex/Timeline/Canvas/Graph/Export）
+  views/                六个路由视图（Home/Characters/Codex/Timeline/Graph/Export）
   components/           视图内组件（BlockEditor 块编辑器、TemplatePicker/Manager 等）
   utils/                纯函数（无 Vue 依赖，可单测）
     branchOrder(事件排序：软解析/重编号/徽标)/fork/integrity/template/markdown/mdExport/snapshot/colors/tokens/
@@ -109,7 +109,7 @@ router 注册（hash history，RouteMeta 需模块增强时在 router 里 declar
 ## 5. 测试与验收
 
 ```bash
-npm run test           # Vitest 91 个（node 环境 + fake-indexeddb）
+npm run test           # Vitest 97 个（node 环境 + fake-indexeddb）
 npm run coverage       # 覆盖率（数据层/纯函数 ≥70% 门槛）
 npm run check:tokens   # 颜色纪律（阻塞）
 npm run lint           # 0 error / 8 条已知 warning
