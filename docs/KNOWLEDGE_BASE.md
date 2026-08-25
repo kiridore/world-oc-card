@@ -166,7 +166,7 @@ STEPS: v0（关系内联 type/directed）→ v1（relationTypes + directed）→
 | 位置 | 坑 |
 |------|-----|
 | TimelineView | ~~聚簇「收起」按钮曾是裸 `<text>` 被画布拖拽 pointer capture 吞点击（v2.3.3 修）~~ → **v3 序位轴/聚簇已移除**（泳道卡片取代） |
-| TimelineView | ~~缩放/平移对序位空间（clampSpan）；事件增删由 watch 重置全景；惯性在 `prefers-reduced-motion` 时跳过~~ → **v3 序位轴交互已移除**（`clampSpan` 仅存于 `utils/zoom.ts`，留待清理） |
+| TimelineView | ~~缩放/平移对序位空间（clampSpan）；事件增删由 watch 重置全景；惯性在 `prefers-reduced-motion` 时跳过~~ → **v3 序位轴交互已移除**（`clampSpan`/`fling` 工具已随序位轴删除） |
 | ~~CanvasView~~（v3 已移除） | ~~Vue Flow 节点必须传 `label: e.title`（v2.3.5 bug：只传 data 渲染空白节点）；拖拽停止 → `upsertEvent` 保存 canvasPos~~ |
 | GraphView | 点阵背景跟随：监听 `aftertransform`（没有 viewportchange 事件），`getViewportByCanvas` 两点探测换算；Point 是 `[x,y]` 元组 |
 | CharactersView | 自动保存是**输入停顿 800ms 落库**（与存底层 500ms 防抖是两层）；提示节流防刷屏；编辑中切换角色自动落盘当前草稿 |

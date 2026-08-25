@@ -37,7 +37,7 @@ world-oc-card/
 ├── playwright.config.ts     # E2E：vite preview:4173 + Chromium/Firefox/Edge 三浏览器矩阵
 ├── package.json             # 版本唯一出处（应用内版本号读它）；依赖见 KNOWLEDGE_BASE §1
 ├── src/                     # 全部业务代码（~5800 行）
-├── tests/                   # Vitest 单测（97 个，node + fake-indexeddb）
+├── tests/                   # Vitest 单测（90 个，node + fake-indexeddb）
 ├── e2e/                     # Playwright（smoke 1 + verification 13 + perf 1 = 15 用例 ×3 浏览器）
 ├── scripts/check-tokens.mjs # G10/G13 颜色纪律静态检查（阻塞门禁）
 ├── docs/                    # 本文档体系
@@ -99,8 +99,8 @@ utils/（纯函数，无 Vue 依赖，全部可单测）
 | `fork.ts` | 世界线 fork 继承语义 | `visibleEventsFor()` 子线可见事件集合；fork 点失效容错；M4-F3/F4/E2（v3：继承边界改按线内 rank） |
 | `timelineOrder.ts` | ~~事件序位轴（dense rank）~~（v3 已移除） | ~~同刻共享序位；suggestInsertAbs 中值插入~~；文件已删 |
 | `branchOrder.ts` | 事件排序纯函数（v3，字符串纪年） | `parseStatus`（可解析性）/`displayTime`/`insertIndex`/`applyOrder`（重编号）/`badgeFor`（待排序/手动序/历法转接徽标）；M4 |
-| `fling.ts` | ~~惯性滑动速度估算~~（v3 序位轴移除，文件未引用） | 120ms 窗口样本；τ=180ms 上限 2.5px/ms（留待清理） |
-| `zoom.ts` | ~~缩放尺度钳制~~（v3 序位轴移除，文件未引用） | MIN_SPAN 0.05 / 全景外扩两格（留待清理） |
+| ~~`fling.ts`~~ | ~~惯性滑动速度估算~~（v3 序位轴移除） | 120ms 窗口样本；τ=180ms 上限 2.5px/ms；文件已删 |
+| ~~`zoom.ts`~~ | ~~缩放尺度钳制~~（v3 序位轴移除） | MIN_SPAN 0.05 / 全景外扩两格；文件已删 |
 | `integrity.ts` | 引用完整性：删除前扫描/级联/巡检/孤儿资产 | `characterReferences/codexReferences/eventReferences`；`remove*Cascade`；`scanBrokenReferences`；`findOrphanAssets`；M2-E1/M3-E2/M4-E1/E2/M7-F1/F2 |
 | `markdown.ts` | Markdown 渲染 + `[[条目名]]` 双向链接 | `preprocessCodexLinks`（含失效引用占位）；marked |
 | `template.ts` | 模板纯逻辑 | stripBlockValues（结构剥离）/insertTemplateBlocks/serialize+parseTemplateFile/全文搜索/标签收集 |
@@ -154,7 +154,7 @@ utils/（纯函数，无 Vue 依赖，全部可单测）
 
 ## 4. 测试与质量工具地图
 
-### 4.1 单测（tests/，97 个；节点环境 + fake-indexeddb）
+### 4.1 单测（tests/，90 个；节点环境 + fake-indexeddb）
 
 | 测试文件 | 覆盖 AC | 被测对象 |
 |----------|---------|----------|
@@ -165,8 +165,8 @@ utils/（纯函数，无 Vue 依赖，全部可单测）
 | `markdown.test.ts` | M3-F2、M3-D1 | `[[链接]]` 双向解析 |
 | `branchOrder.test.ts` | M4（v3 字符串纪年排序） | 可解析判定/展示文本/插入位/重编号/徽标派生（含历法转接） |
 | `fork.test.ts` | M4-F3/F4/E2/D1 | fork 继承语义（v3 rank 边界）、多级分叉、分叉点失效容错 |
-| `zoom.test.ts` | G14、v1.5.0 | 缩放钳制（序位轴交互 v3 已移除，仅保留 clampSpan 纯函数） |
-| `fling.test.ts` | v2.2.0 | 惯性速度估算（v3 序位轴移除，留待清理） |
+| ~~`zoom.test.ts`~~ | G14、v1.5.0 | 缩放钳制（v3 序位轴移除，文件已删） |
+| ~~`fling.test.ts`~~ | v2.2.0 | 惯性速度估算（v3 序位轴移除，文件已删） |
 | `colors.test.ts` | G11、M4-S1、M3-S1 | 调色板双主题对比度 ≥3:1 |
 | `export.test.ts` | M6-F2/F4/E1 | 角色 Markdown 全块、HTML 快照（零外链/体积/占位） |
 
@@ -182,7 +182,7 @@ utils/（纯函数，无 Vue 依赖，全部可单测）
 
 | 命令 | 门槛 | 说明 |
 |------|------|------|
-| `npm run test` | 97/97 绿 | 数据层+纯函数（node + fake-indexeddb） |
+| `npm run test` | 90/90 绿 | 数据层+纯函数（node + fake-indexeddb） |
 | `npm run coverage` | lines/functions/statements ≥70%、branches ≥60% | 范围仅 src/storage、src/utils、src/schemas |
 | `npm run check:tokens` | 阻塞 | 双主题 token 齐全、chrome 饱和度 ≤40%、**白名单外零颜色字面量** |
 | `npm run lint` | 0 error（8 已知 warning） | scripts/e2e 忽略 |

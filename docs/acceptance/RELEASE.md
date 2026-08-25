@@ -8,7 +8,7 @@
 
 | 证据源 | 结果 |
 |---|---|
-| 单元测试（Vitest） | **97/97 通过**（schemas / storage / zip / migration / template / markdown / integrity / branchOrder / fork / colors / mdExport / snapshot） |
+| 单元测试（Vitest） | **90/90 通过**（schemas / storage / migration / zip / template / markdown / integrity / branchOrder / fork / colors / export） |
 | E2E（Playwright，生产构建） | **45/45 通过**（smoke 1 + verification 13 + perf 1，× 3 浏览器） |
 | 覆盖率（G8：数据层+纯函数） | lines：schemas 100% / storage 94% / utils 92%（≥70% ✓，全量 93%） |
 | token 静态检查（G10/G13） | 通过：双主题 token 齐全、chrome 饱和度 ≤40%、无白名单外颜色字面量 |
@@ -180,7 +180,7 @@
 | v2.3.1 | 点阵跟随视口平移/缩放 | E2E `M5 点阵背景跟随`：滚轮缩放→CSS 变量变化断言，三浏览器 |
 | v2.3.2 | 关系连线曲线化；修复页内新建关系不重绘（deep watch + G6 增量路径绕行） | E2E `M5 页内新建关系曲线立即渲染`（截图字节比对）；视觉走查（弧线+标签） |
 | v2.3.3 | 修复聚簇「收起」按钮被拖拽 pointer capture 吞掉点击 | E2E `M4 同刻多事件` 补收起→回归→再展开断言，三浏览器 |
-| **v3.0.0** | **时间线 v3 重构（破坏性 schemaVersion 2→3）**：字符串纪年双模式时间、世界线内软解析+手动排序（rank 真源）、泳道式卡片视图（横/纵 + 顶部草稿箱）、移除因果连线/画布视图/历法实体/序位轴交互；可选字段变更为参与者（含势力）与通用百科关联 | 单测 **97/97**；E2E **45/45**（smoke 1 + verification 13 + perf 1 ×3 浏览器）；覆盖率 lines 93%；build/lint/tokens 全绿；perf：open 374ms / 时间轴 1000 卡片 5 线 138ms |
+| **v3.0.0** | **时间线 v3 重构（破坏性 schemaVersion 2→3）**：字符串纪年双模式时间、世界线内软解析+手动排序（rank 真源）、泳道式卡片视图（横/纵 + 顶部草稿箱）、移除因果连线/画布视图/历法实体/序位轴交互；可选字段变更为参与者（含势力）与通用百科关联 | 单测 **90/90**；E2E **45/45**（smoke 1 + verification 13 + perf 1 ×3 浏览器）；覆盖率 lines 93%；build/lint/tokens 全绿；perf：open 374ms / 时间轴 1000 卡片 5 线 138ms |
 
 ### 迭代期缺陷修复记录（择要）
 
