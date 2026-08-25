@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type {
-  AssetMeta, Character, CodexEntry, ProjectData, ProjectMeta, Relation, Template, TimelineEvent, Worldline,
+  AssetMeta, Character, CodexEntry, EventTime, ProjectData, ProjectMeta, Relation, Template, TimelineEvent, Worldline,
 } from '@/types'
 import { CURRENT_SCHEMA_VERSION } from '@/types'
 import { db } from '@/storage/db'
@@ -11,6 +11,8 @@ import { DirtyTracker } from '@/utils/dirty'
 import { uuid, nowIso } from '@/utils/id'
 import { palettePick } from '@/utils/colors'
 import { builtinTemplates } from '@/data/builtinTemplates'
+import { insertIndex, applyOrder, parseStatus } from '@/utils/branchOrder'
+import { removeEventCascade } from '@/utils/integrity'
 
 export const BUILTIN_CODEX_TYPES: { key: string; name: string }[] = [
   { key: 'location', name: '地点' },
@@ -54,7 +56,6 @@ export const useProjectStore = defineStore('project', () => {
     return {
       meta: { id, name, schemaVersion: CURRENT_SCHEMA_VERSION, createdAt: now, updatedAt: now },
       settings: {
-        calendars: [{ id: uuid(), name: '通用纪年', offset: 0, unitYears: 1 }],
         relationTypes: [
           { id: uuid(), name: '亲属', color: palettePick(0), arrow: 'none' },
           { id: uuid(), name: '敌对', color: palettePick(2), arrow: 'single' },
@@ -219,6 +220,71 @@ export const useProjectStore = defineStore('project', () => {
     return wl
   }
 
+  // ---- 事件时间与线内排序（v3：rank 为线内顺序唯一真源，软解析只算插入位）----
+  function reindexBranch(worldlineId: string | null): void {
+    if (!worldlineId) return
+    const branch = current.value?.events.filter((e) => e.worldlineId === worldlineId) ?? []
+    const order = [...branch].sort((a, b) => a.rank - b.rank).map((e) => e.id)
+    applyOrder(branch, order) // 删除/换线后可能出现空洞，统一重编号
+    for (const e of branch) mark({ kind: 'event', id: e.id })
+  }
+
+  function setEventTime(eventId: string, time: EventTime, worldlineId: string): void {
+    if (!current.value) return
+    const ev = current.value.events.find((e) => e.id === eventId)
+    if (!ev) return
+    const branch = current.value.events.filter((e) => e.worldlineId === worldlineId && e.id !== eventId)
+    const order = [...branch].sort((a, b) => a.rank - b.rank).map((e) => e.id)
+    const idx = insertIndex(order.map((id) => current.value!.events.find((x) => x.id === id)!), time)
+    order.splice(idx, 0, eventId)
+    ev.time = time
+    ev.worldlineId = worldlineId
+    applyOrder([...branch, ev], order)
+    for (const b of [...branch, ev]) mark({ kind: 'event', id: b.id })
+  }
+
+  function moveToDraft(eventId: string): void {
+    const ev = current.value?.events.find((e) => e.id === eventId)
+    if (!ev) return
+    const oldLine = ev.worldlineId
+    ev.time = null
+    ev.worldlineId = null
+    ev.rank = 0
+    mark({ kind: 'event', id: eventId })
+    if (oldLine) reindexBranch(oldLine)
+  }
+
+  function moveToWorldline(eventId: string, targetWorldlineId: string): void {
+    if (!current.value) return
+    const ev = current.value.events.find((e) => e.id === eventId)
+    if (!ev || !ev.time) return
+    const oldLine = ev.worldlineId
+    ev.worldlineId = targetWorldlineId
+    const branch = current.value.events.filter((e) => e.worldlineId === targetWorldlineId)
+    const order = [...branch].sort((a, b) => a.rank - b.rank).map((e) => e.id)
+    ev.rank = order.length // 落尾
+    for (const b of branch) mark({ kind: 'event', id: b.id })
+    if (oldLine) reindexBranch(oldLine)
+  }
+
+  function reorderBranch(worldlineId: string, newOrderIds: string[]): void {
+    const branch = current.value?.events.filter((e) => e.worldlineId === worldlineId) ?? []
+    const { changed } = applyOrder(branch, newOrderIds)
+    for (const c of changed) {
+      const e = branch.find((x) => x.id === c.id)
+      if (!e) continue
+      if (parseStatus(e.time) !== 'auto') e.manualPlaced = true
+      mark({ kind: 'event', id: e.id })
+    }
+  }
+
+  function removeEvent(eventId: string): void {
+    const ev = current.value?.events.find((e) => e.id === eventId)
+    if (!current.value) return
+    removeEventCascade(current.value, eventId)
+    if (ev?.worldlineId) reindexBranch(ev.worldlineId)
+  }
+
   // ---- 资产（图片即时落盘，不走防抖）----
   async function addAsset(file: File): Promise<AssetMeta | null> {
     if (!current.value) return null
@@ -285,6 +351,7 @@ export const useProjectStore = defineStore('project', () => {
     flush, mark,
     upsertCharacter, upsertCodex, upsertEvent, updateSettings, updateRelations, updateTemplates,
     worldlineById, forkWorldline,
+    setEventTime, moveToWorldline, moveToDraft, reorderBranch, removeEvent,
     addAsset, assetUrl, deleteAssets,
     exportZip, importZip,
     characterById, codexById, eventById,
