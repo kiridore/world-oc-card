@@ -22,58 +22,33 @@
         <div class="row">
           <span class="lbl">世界线</span>
           <n-select
-            v-model:value="d.worldlineId"
+            v-model:value="lineId"
             :options="worldlineOptions"
           />
         </div>
         <div class="row">
           <span class="lbl">时间</span>
-          <div class="time-edit">
-            <n-checkbox
-              :checked="d.time !== null"
-              @update:checked="toggleTimed"
-            >
-              定时
-            </n-checkbox>
-            <template v-if="d.time">
-              <n-select
-                v-model:value="d.time.calendarId"
-                size="small"
-                style="width: 120px"
-                :options="calendarOptions"
-              />
-              <n-input-number
-                v-model:value="d.time.value"
-                size="small"
-                style="width: 120px"
-                :step="1"
-              />
-              <span class="hint">{{ suggestDisplay(d.time, calendars) }}</span>
-            </template>
-            <span
-              v-else
-              class="hint"
-            >未定时草稿（仅出现在画布视图）</span>
-          </div>
+          <EventTimeEditor v-model="d.time" />
         </div>
         <div class="row">
-          <span class="lbl">参与者</span>
+          <span class="lbl">参与者（角色 / 势力）</span>
           <n-select
             v-model:value="d.participantIds"
             multiple
             filterable
             clearable
-            placeholder="选择角色"
-            :options="characterOptions"
+            placeholder="选择角色或势力条目"
+            :options="participantOptions"
           />
         </div>
         <div class="row">
-          <span class="lbl">地点</span>
+          <span class="lbl">关联百科</span>
           <n-select
-            v-model:value="d.locationId"
-            clearable
+            v-model:value="d.relatedCodexIds"
+            multiple
             filterable
-            placeholder="百科条目（建议地点类）"
+            clearable
+            placeholder="选择百科条目"
             :options="codexOptions"
           />
         </div>
@@ -100,16 +75,14 @@
           </n-checkbox>
         </div>
         <div class="ref-list">
-          <div class="lbl">
-            参与者：
-          </div>
+          <span class="lbl">参与者：</span>
           <n-tag
             v-for="p in d.participantIds"
             :key="p"
             size="small"
             round
           >
-            {{ store.characterById(p)?.name ?? '失效引用' }}
+            {{ participantName(p) }}
           </n-tag>
           <span
             v-if="d.participantIds.length === 0"
@@ -123,6 +96,14 @@
             @click="save"
           >
             保存
+          </n-button>
+          <n-button
+            v-if="event.time"
+            size="small"
+            quaternary
+            @click="toDraft"
+          >
+            放回草稿箱
           </n-button>
           <n-button
             size="small"
@@ -148,14 +129,14 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import {
-  NDrawer, NDrawerContent, NInput, NInputNumber, NSelect, NButton, NCheckbox, NTag,
+  NDrawer, NDrawerContent, NInput, NSelect, NButton, NCheckbox, NTag,
   useDialog, useMessage,
 } from 'naive-ui'
 import { GitBranch, Trash2 } from 'lucide-vue-next'
 import { useProjectStore } from '@/stores/project'
-import { suggestDisplay } from '@/utils/calendar'
-import { eventReferences, removeEventCascade } from '@/utils/integrity'
-import type { TimelineEvent } from '@/types'
+import EventTimeEditor from './EventTimeEditor.vue'
+import { eventReferences } from '@/utils/integrity'
+import type { EventTime, TimelineEvent } from '@/types'
 
 const props = defineProps<{ event: TimelineEvent | null }>()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'forked', worldlineId: string): void }>()
@@ -165,37 +146,89 @@ const dialog = useDialog()
 const message = useMessage()
 
 const draft = ref<TimelineEvent | null>(null)
+/** 打开抽屉时的原状快照（保存对比用） */
+const before = ref<TimelineEvent | null>(null)
+/** 世界线选择：草稿默认主世界线，已定时默认当前线 */
+const lineId = ref<string | null>(null)
 // 模板别名：根节点 v-if 已保证非空，规避模板窄化限制
 const d = computed<TimelineEvent>(() => draft.value as TimelineEvent)
 
 watch(() => props.event, (e) => {
   draft.value = e ? JSON.parse(JSON.stringify(e)) : null
+  before.value = e ? JSON.parse(JSON.stringify(e)) : null
+  lineId.value = e?.worldlineId ?? store.current?.settings.worldlines[0]?.id ?? null
 }, { immediate: true })
 
-const calendars = computed(() => store.current?.settings.calendars ?? [])
 const worldlineOptions = computed(() =>
   (store.current?.settings.worldlines ?? []).map((w) => ({
     label: w.name + (w.status === 'abandoned' ? '（已废弃）' : ''), value: w.id,
   })))
-const calendarOptions = computed(() => calendars.value.map((c) => ({ label: c.name, value: c.id })))
-const characterOptions = computed(() => (store.current?.characters ?? []).map((c) => ({ label: c.name, value: c.id })))
+const factionTypeIds = computed(() =>
+  new Set((store.current?.settings.codexTypes ?? []).filter((t) => t.key === 'faction').map((t) => t.id)))
+const participantOptions = computed(() => [
+  ...(store.current?.characters ?? []).map((c) => ({ label: c.name, value: c.id })),
+  ...(store.current?.codex ?? [])
+    .filter((c) => factionTypeIds.value.has(c.typeId))
+    .map((c) => ({ label: `${c.name}（势力）`, value: c.id })),
+])
 const codexOptions = computed(() => (store.current?.codex ?? []).map((c) => ({ label: c.name, value: c.id })))
 
 const canFork = computed(() => draft.value?.time !== null)
 
-function toggleTimed(on: boolean): void {
-  if (!draft.value || !store.current) return
-  const cal = store.current.settings.calendars[0]
-  draft.value.time = on && cal ? { calendarId: cal.id, value: 0, display: '' } : null
+function participantName(id: string): string {
+  return store.characterById(id)?.name ?? store.codexById(id)?.name ?? '失效引用'
+}
+
+function timeError(t: EventTime | null): string | null {
+  if (t === null) return null
+  if (t.mode === 'custom') return t.text.trim() ? null : '自定义时间不能为空'
+  return [t.era, t.year, t.month, t.day].some((v) => v.trim() !== '') ? null : '纪年法时间至少填写一个字段'
 }
 
 function save(): void {
-  if (!draft.value) return
-  if (draft.value.time && !draft.value.time.display.trim()) {
-    draft.value.time.display = suggestDisplay(draft.value.time, calendars.value)
+  if (!draft.value || !store.current) return
+  const b = before.value
+  const err = timeError(draft.value.time)
+  if (err) { message.error(err); return }
+  if (!draft.value.title.trim()) { message.error('标题不能为空'); return }
+
+  const hadTime = b?.time != null
+  const t = draft.value.time // 局部缓存：reactive 属性访问无法被 TS 窄化（坑 3 同类）
+  const hasTime = t != null
+  const clone = () => JSON.parse(JSON.stringify(draft.value))
+
+  if (!hasTime) {
+    // 草稿：全字段保存（worldlineId 强制 null，防止草稿被误挂线）
+    if (hadTime) {
+      store.moveToDraft(draft.value.id)
+      emit('close')
+      message.success('已放回草稿箱')
+    } else {
+      store.upsertEvent({ ...clone(), worldlineId: null, time: null })
+      message.success('事件已保存为草稿')
+    }
+  } else if (!hadTime) {
+    // 草稿补全时间：先存全字段（保持草稿形态），再入线
+    store.upsertEvent({ ...clone(), worldlineId: null, time: null })
+    const wlId = lineId.value ?? store.current.settings.worldlines[0]?.id
+    if (!wlId) { message.error('请先创建世界线'); return }
+    store.setEventTime(draft.value.id, t!, wlId)
+    message.success('事件已入线并保存')
+  } else {
+    const timeChanged = JSON.stringify(draft.value.time) !== JSON.stringify(b!.time)
+    const lineChanged = lineId.value !== b!.worldlineId
+    if (timeChanged) store.upsertEvent({ ...clone(), worldlineId: b!.worldlineId })
+    if (lineChanged && lineId.value) store.moveToWorldline(draft.value.id, lineId.value)
+    if (!timeChanged && !lineChanged) store.upsertEvent(clone())
+    message.success('事件已保存')
   }
-  store.upsertEvent(JSON.parse(JSON.stringify(draft.value)))
-  message.success('事件已保存')
+}
+
+function toDraft(): void {
+  if (!draft.value) return
+  store.moveToDraft(draft.value.id)
+  emit('close')
+  message.success('已放回草稿箱')
 }
 
 function forkHere(): void {
@@ -230,13 +263,7 @@ function confirmDelete(): void {
     positiveText: '删除',
     negativeText: '取消',
     onPositiveClick: async () => {
-      const data = store.current!
-      const touched = new Set<string>()
-      for (const w of data.settings.worldlines) if (w.forkPointEventId === targetId) touched.add(w.id)
-      removeEventCascade(data, targetId)
-      store.mark({ kind: 'event', id: targetId })
-      for (const id of touched) store.mark({ kind: 'event', id })
-      store.updateSettings()
+      store.removeEvent(targetId)
       await store.flush()
       emit('close')
       message.success('事件已删除')
@@ -249,7 +276,6 @@ function confirmDelete(): void {
 .drawer-body { display: flex; flex-direction: column; gap: 14px; }
 .row { display: flex; flex-direction: column; gap: 6px; }
 .lbl { font-size: 12px; color: var(--text-3); }
-.time-edit { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .hint { font-size: 12px; color: var(--text-3); }
 .desc { min-height: 120px; resize: vertical; background: var(--bg); border: 1px solid var(--border-weak); border-radius: var(--radius-s); color: var(--text-1); padding: 10px; font-size: 13px; font-family: Consolas, monospace; outline: none; line-height: 1.7; }
 .checks { flex-direction: row; gap: 16px; }
