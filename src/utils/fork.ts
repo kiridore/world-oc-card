@@ -1,14 +1,13 @@
 // 世界线 fork 继承语义（DESIGN.md §2.4.1 / M4-F3/F4/E2/D1）：
-// 子线可见事件 = 本线自有事件 + 各祖先线上（按各层 fork 点边界 ≤ fork 时刻）的定时事件。
-// fork 点事件缺失（被删）→ 该层边界失效，视为继承该祖先线全部定时事件（时间轴标记"分叉点失效"）。
+// 子线可见事件 = 本线自有事件 + 各祖先线上（按各层 fork 点边界 ≤ fork 事件 rank）的定时事件。
+// v3：边界以 rank 表达（rank 是线内顺序唯一真源）；fork 点事件缺失/无时间 → 该层边界失效，
+// 视为继承该祖先线全部定时事件（标记 forkBroken）。
 import type { ProjectData, TimelineEvent } from '@/types'
-import { eventAbs } from './calendar'
 
 export interface WorldlineView {
   worldlineId: string
-  own: TimelineEvent[]          // 本线自有（定时）
-  inherited: TimelineEvent[]    // 继承自祖先（定时）
-  untimed: TimelineEvent[]      // 本线未定时草稿（仅画布）
+  own: TimelineEvent[]          // 本线自有（定时，按 rank 升序）
+  inherited: TimelineEvent[]    // 继承自祖先（按 rank 升序）
   forkBroken: boolean           // 分叉点失效
 }
 
@@ -23,13 +22,10 @@ export function worldlineDepth(data: ProjectData, worldlineId: string): number {
 }
 
 export function visibleEventsFor(data: ProjectData, worldlineId: string): WorldlineView {
-  const { worldlines, calendars } = data.settings
+  const { worldlines } = data.settings
   const own: TimelineEvent[] = []
-  const untimed: TimelineEvent[] = []
   for (const e of data.events) {
-    if (e.worldlineId !== worldlineId) continue
-    if (e.time === null) untimed.push(e)
-    else own.push(e)
+    if (e.worldlineId === worldlineId && e.time !== null) own.push(e)
   }
   const inherited: TimelineEvent[] = []
   const inheritedIds = new Set<string>()
@@ -42,24 +38,21 @@ export function visibleEventsFor(data: ProjectData, worldlineId: string): Worldl
     let boundary: number | null = null
     if (cur.forkPointEventId) {
       const forkEvent = data.events.find((e) => e.id === cur!.forkPointEventId)
-      const abs = forkEvent && forkEvent.time ? eventAbs(forkEvent, calendars) : null
-      if (abs === null) forkBroken = true // 分叉点事件不存在或无时间 → 失效
-      else boundary = abs
+      if (!forkEvent || forkEvent.time === null) forkBroken = true // 分叉点事件缺失或无时间 → 失效
+      else boundary = forkEvent.rank
     }
     // boundary === null（含失效）→ 继承该祖先线全部定时事件
     for (const e of data.events) {
       if (e.worldlineId !== parent.id || e.time === null) continue
-      const abs = eventAbs(e, calendars)!
-      if (boundary === null || abs <= boundary) {
+      if (boundary === null || e.rank <= boundary) {
         if (!inheritedIds.has(e.id)) { inheritedIds.add(e.id); inherited.push(e) }
       }
     }
     cur = parent
   }
 
-  const byAbs = (a: TimelineEvent, b: TimelineEvent) =>
-    (eventAbs(a, calendars) ?? 0) - (eventAbs(b, calendars) ?? 0)
-  return { worldlineId, own: [...own].sort(byAbs), inherited: [...inherited].sort(byAbs), untimed, forkBroken }
+  const byRank = (a: TimelineEvent, b: TimelineEvent) => a.rank - b.rank
+  return { worldlineId, own: [...own].sort(byRank), inherited: [...inherited].sort(byRank), forkBroken }
 }
 
 /** 全部世界线的视图（按 order 排序；用于时间轴轨道） */

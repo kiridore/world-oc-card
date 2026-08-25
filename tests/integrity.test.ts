@@ -104,15 +104,13 @@ describe('M4-E1/E2 事件与世界线级联', () => {
 })
 
 describe('M7-F1 引用巡检', () => {
-  it('发现全部失效引用（不存在参与者/历法/世界线/类型/链接目标）', () => {
+  it('发现全部失效引用（不存在参与者/世界线/类型/链接目标）', () => {
     const d = data()
-    d.events[0].time = { calendarId: 'cal-x', value: 1, display: '' } // 历法失效
     d.events[0].participantIds = ['c1', 'ghost'] // 参与者失效
     d.relations[0].typeId = 'rt-x' // 类型失效
     d.characters[0].fieldBlocks.push({ type: 'link', title: '幽灵', targetType: 'character', targetId: 'ghost' })
     const broken = scanBrokenReferences(d)
     const details = broken.map((b) => b.detail).join('\n')
-    expect(details).toContain('历法不存在')
     expect(details).toContain('ghost')
     expect(details).toContain('关系类型不存在')
     expect(details).toContain('链接目标不存在')

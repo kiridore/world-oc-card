@@ -3,21 +3,20 @@ import type { ProjectData, TimelineEvent } from '../src/types'
 import { visibleEventsFor, allWorldlineViews, worldlineDepth } from '../src/utils/fork'
 
 let seq = 0
-function ev(worldlineId: string, value: number | null): TimelineEvent {
+function ev(worldlineId: string | null, value: number | null, rank = 0): TimelineEvent {
   seq += 1
   return {
     id: `e${seq}`, worldlineId,
-    time: value === null ? null : { calendarId: 'cal1', value, display: `年 ${value}` },
+    time: value === null ? null : { mode: 'calendar', era: '第三纪元', year: String(value), month: '', day: '' },
     title: `事件@${worldlineId}:${value}`, description: '',
-    participantIds: [], locationId: null, causalLinks: [], collapsed: false, locked: false,
+    participantIds: [], relatedCodexIds: [], rank, manualPlaced: false, collapsed: false, locked: false,
   }
 }
 
 function data(): ProjectData {
   return {
-    meta: { id: 'p', name: '', schemaVersion: 1, createdAt: '', updatedAt: '' },
+    meta: { id: 'p', name: '', schemaVersion: 3, createdAt: '', updatedAt: '' },
     settings: {
-      calendars: [{ id: 'cal1', name: '通用纪年', offset: 0, unitYears: 1 }],
       relationTypes: [], codexTypes: [],
       worldlines: [
         { id: 'main', name: '主世界线', parentWorldlineId: null, forkPointEventId: null, color: '#7d9cb5', status: 'active', order: 0 },
@@ -29,14 +28,14 @@ function data(): ProjectData {
     characters: [],
     codex: [],
     events: [
-      { ...ev('main', 10), id: 'e-fork' },   // 主线 fork 点（abs=10）
-      ev('main', 5),                          // 主线更早
-      ev('main', 30),                         // 主线 fork 之后新增
-      { ...ev('if1', 15), id: 'e-if1-15' },
-      { ...ev('if1', 20), id: 'e-if1-20' },   // if1 的 fork 点（孙线自此分出）
-      ev('if1', 40),
-      ev('if2', 25),
-      ev('main', null),                       // 未定时草稿
+      { ...ev('main', 10, 1), id: 'e-fork' },   // 主线 fork 点（rank=1）
+      ev('main', 5, 0),                          // 主线更早
+      ev('main', 30, 2),                         // 主线 fork 之后
+      { ...ev('if1', 15, 0), id: 'e-if1-15' },
+      { ...ev('if1', 20, 1), id: 'e-if1-20' },   // if1 的 fork 点（孙线自此分出）
+      ev('if1', 40, 2),
+      ev('if2', 25, 0),
+      ev(null, null, 0),                         // 草稿（未定时，无世界线）
     ],
   }
 }
@@ -46,22 +45,21 @@ describe('M4-F3 fork 继承语义', () => {
     const d = data()
     const view = visibleEventsFor(d, 'if1')
     const inheritedTitles = view.inherited.map((e) => e.title)
-    expect(inheritedTitles).toContain('事件@main:10')   // fork 点本身
-    expect(inheritedTitles).toContain('事件@main:5')    // 更早
-    expect(inheritedTitles).not.toContain('事件@main:30') // fork 之后
+    expect(inheritedTitles).toContain('事件@main:10')   // fork 点本身（rank=1 ≤ boundary 1）
+    expect(inheritedTitles).toContain('事件@main:5')    // 更早（rank=0）
+    expect(inheritedTitles).not.toContain('事件@main:30') // fork 之后（rank=2 > 1）
     expect(view.own.map((t) => t.title)).toEqual(['事件@if1:15', '事件@if1:20', '事件@if1:40'])
 
-    // 父线新增事件 → 子线不可见
-    d.events.push(ev('main', 12))
+    // 父线新增事件（rank 在 fork 之后）→ 子线不可见
+    d.events.push(ev('main', 40, 3))
     const view2 = visibleEventsFor(d, 'if1')
-    expect(view2.inherited.map((e) => e.title)).not.toContain('事件@main:12')
+    expect(view2.inherited.map((e) => e.title)).not.toContain('事件@main:40')
   })
 
   it('主世界线无继承', () => {
     const view = visibleEventsFor(data(), 'main')
     expect(view.inherited).toHaveLength(0)
     expect(view.own.length).toBe(3) // 定时事件：5 / 10(fork点) / 30
-    expect(view.untimed.map((e) => e.title)).toEqual(['事件@main:null'])
   })
 })
 
@@ -69,10 +67,10 @@ describe('M4-F4 多级分叉（孙线）', () => {
   it('孙线继承 = if1 ≤20 的自有 + main ≤10 的继承', () => {
     const view = visibleEventsFor(data(), 'if2')
     const titles = [...view.inherited.map((e) => e.title), ...view.own.map((e) => e.title)]
-    expect(titles).toContain('事件@if1:15')   // 父线 if1 ≤ fork(20)
+    expect(titles).toContain('事件@if1:15')   // 父线 if1 rank≤1（boundary=20 的 rank）
     expect(titles).toContain('事件@if1:20')   // fork 点
     expect(titles).not.toContain('事件@if1:40')
-    expect(titles).toContain('事件@main:10')  // 祖先 main ≤ fork(10)
+    expect(titles).toContain('事件@main:10')  // 祖先 main rank≤1（boundary=10 的 rank）
     expect(titles).not.toContain('事件@main:30')
     expect(titles).toContain('事件@if2:25')
   })

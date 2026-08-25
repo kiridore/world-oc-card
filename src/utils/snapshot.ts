@@ -1,7 +1,7 @@
 // 单文件 HTML 分享快照（M6-F4）：内联全部数据的只读浏览页。
 // 约束（DESIGN.md §2.5/§5）：断网 + file:// 双击可用 → 零外部请求；双主题内联可切换；
 // 图片仅内联 ≤200KB 的 dataURL，超限/缺失显示占位（失效引用不崩溃，配合 G5）。
-import type { AssetMeta, ProjectData } from '@/types'
+import type { AssetMeta, ProjectData, TimelineEvent } from '@/types'
 import { allWorldlineViews } from './fork'
 
 export interface SnapshotAsset { meta: AssetMeta; dataUrl: string | null }
@@ -13,6 +13,19 @@ interface SnapLane { name: string; color: string; abandoned: boolean; broken: bo
 
 export function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+/** v3 事件时间展示文本（calendar 拼接 / custom 原文）。
+ *  T5 将改为复用 utils/branchOrder 的 displayTime，此处先内联保持快照可用。 */
+export function displayTime(time: TimelineEvent['time']): string {
+  if (!time) return ''
+  if (time.mode === 'custom') return time.text
+  const parts: string[] = []
+  if (time.era) parts.push(time.era)
+  if (time.year) parts.push(`${time.year} 年`)
+  if (time.month) parts.push(`${time.month} 月`)
+  if (time.day) parts.push(`${time.day} 日`)
+  return parts.join(' ')
 }
 
 /** 极简 Markdown 子集渲染（快照只读页用，无需完整 marked） */
@@ -100,7 +113,7 @@ export function buildSnapshotModel(data: ProjectData, assets: SnapshotAsset[]): 
         name: w.name, color: w.color, abandoned: w.status === 'abandoned', broken: v.forkBroken,
         events: events.map(({ e, dim }) => ({
           title: e.title,
-          display: e.time?.display ?? '',
+          display: displayTime(e.time),
           dim,
           participants: e.participantIds.map((p) => charNames.get(p) ?? '失效引用'),
         })),

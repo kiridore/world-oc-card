@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseWith, characterSchema, fieldBlockSchema, eventSchema, settingsSchema } from '../src/schemas'
+import { parseWith, characterSchema, fieldBlockSchema, eventSchema, settingsSchema, eventTimeSchema, legacyEventV2Schema, legacySettingsV2Schema } from '../src/schemas'
 import type { Character, TimelineEvent } from '../src/types'
 
 function sampleCharacter(): Character {
@@ -57,10 +57,10 @@ describe('M0-E1 非法数据拒绝且能定位字段路径', () => {
     if (!r.ok) expect(r.error).toContain('id')
   })
 
-  it('畸形事件（枚举外状态）被拒绝并定位', () => {
+  it('畸形事件（未知字段）被拒绝并定位', () => {
     const e = {
       id: 'e1', worldlineId: 'w1', time: null, title: 't', description: '',
-      participantIds: [], locationId: null, causalLinks: [],
+      participantIds: [], relatedCodexIds: [], rank: 0, manualPlaced: false,
       collapsed: false, locked: false, bogus: true,
     } as unknown as TimelineEvent
     const r = parseWith(eventSchema, e)
@@ -69,10 +69,46 @@ describe('M0-E1 非法数据拒绝且能定位字段路径', () => {
 })
 
 describe('settings schema', () => {
-  it('世界线/历法合法样例通过', () => {
+  it('世界线合法样例通过', () => {
     const r = parseWith(settingsSchema, {
-      calendars: [{ id: 'cal1', name: '第三纪元', offset: 0, unitYears: 1 }],
       relationTypes: [{ id: 'rt1', name: '亲属', color: '#7d9cb5', arrow: 'none' as const }],
+      codexTypes: [{ id: 'ct1', key: 'location', name: '地点' }],
+      worldlines: [{ id: 'w1', name: '主世界线', parentWorldlineId: null, forkPointEventId: null, color: '#7d9cb5', status: 'active', order: 0 }],
+    })
+    expect(r.ok).toBe(true)
+  })
+})
+
+describe('v3 eventTimeSchema', () => {
+  it('calendar 四段全空被拒绝；至少一字段通过', () => {
+    const empty = parseWith(eventTimeSchema, { mode: 'calendar', era: '', year: '', month: '', day: '' })
+    expect(empty.ok).toBe(false)
+    const ok = parseWith(eventTimeSchema, { mode: 'calendar', era: '第三纪元', year: '217', month: '', day: '' })
+    expect(ok.ok).toBe(true)
+  })
+
+  it('custom 空文本被拒绝', () => {
+    expect(parseWith(eventTimeSchema, { mode: 'custom', text: '' }).ok).toBe(false)
+    expect(parseWith(eventTimeSchema, { mode: 'custom', text: '黑暗时代' }).ok).toBe(true)
+  })
+})
+
+describe('legacy 输入 schema', () => {
+  it('legacyEventV2Schema 可解析 v2 旧事件形状', () => {
+    const r = parseWith(legacyEventV2Schema, {
+      id: 'e1', worldlineId: 'w1',
+      time: { calendarId: 'cal1', value: 100, display: '纪元 100 年' },
+      title: '建国', description: '',
+      participantIds: ['c1'], locationId: 'x1', causalLinks: ['e2'],
+      canvasPos: { x: 1, y: 2 }, collapsed: false, locked: false,
+    })
+    expect(r.ok).toBe(true)
+  })
+
+  it('legacySettingsV2Schema 可解析 v2 旧 settings（含 calendars）', () => {
+    const r = parseWith(legacySettingsV2Schema, {
+      calendars: [{ id: 'cal1', name: '第三纪元', offset: 0, unitYears: 1 }],
+      relationTypes: [{ id: 'rt1', name: '亲属', color: '#7d9cb5', arrow: 'single' }],
       codexTypes: [{ id: 'ct1', key: 'location', name: '地点' }],
       worldlines: [{ id: 'w1', name: '主世界线', parentWorldlineId: null, forkPointEventId: null, color: '#7d9cb5', status: 'active', order: 0 }],
     })

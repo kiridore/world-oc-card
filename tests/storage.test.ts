@@ -8,9 +8,8 @@ import { uuid, nowIso } from '../src/utils/id'
 
 function makeProject(name = '测试项目'): ProjectData {
   return {
-    meta: { id: uuid(), name, schemaVersion: 2, createdAt: nowIso(), updatedAt: nowIso() },
+    meta: { id: uuid(), name, schemaVersion: 3, createdAt: nowIso(), updatedAt: nowIso() },
     settings: {
-      calendars: [{ id: 'cal1', name: '通用纪年', offset: 0, unitYears: 1 }],
       relationTypes: [{ id: 'rt1', name: '亲属', color: '#7d9cb5', arrow: 'none' as const }],
       codexTypes: [{ id: 'ct1', key: 'location', name: '地点' }],
       worldlines: [{ id: 'w1', name: '主世界线', parentWorldlineId: null, forkPointEventId: null, color: '#7d9cb5', status: 'active', order: 0 }],
@@ -23,7 +22,7 @@ function makeProject(name = '测试项目'): ProjectData {
     ],
     codex: [{ id: 'x1', typeId: 'ct1', name: '王城', content: '## 概述', attributes: [{ key: '人口', value: '3 万' }], color: '#8fae8b' }],
     events: [
-      { id: 'e1', worldlineId: 'w1', time: { calendarId: 'cal1', value: 100, display: '纪元 100 年' }, title: '建国', description: '', participantIds: ['c1'], locationId: 'x1', causalLinks: [], collapsed: false, locked: false },
+      { id: 'e1', worldlineId: 'w1', time: { mode: 'calendar', era: '通用纪年', year: '100', month: '', day: '' }, title: '建国', description: '', participantIds: ['c1'], relatedCodexIds: ['x1'], rank: 0, manualPlaced: false, collapsed: false, locked: false },
     ],
   }
 }
@@ -189,7 +188,7 @@ describe('M1-F6 版本迁移', () => {
       relations: [{ id: 'r1', from: 'c1', to: 'c2', type: '挚友', directed: false, description: '' }],
     }))
     const res = await repo.importZip(new Blob([zipSync(files)]), 'overwrite')
-    expect(res.meta.schemaVersion).toBe(2)
+    expect(res.meta.schemaVersion).toBe(3)
     const loaded = (await repo.loadProject(p.meta.id))!.data
     expect(loaded.relations).toHaveLength(1)
     const rt = loaded.settings.relationTypes.find((t) => t.name === '挚友')
@@ -205,13 +204,14 @@ describe('M1-F6 版本迁移', () => {
     const files: Record<string, Uint8Array> = { ...unzipSync(bytes) }
     files['project.json'] = strToU8(JSON.stringify({ ...p.meta, schemaVersion: 1 }))
     const settings = JSON.parse(strFromU8(files['settings.json']))
+    settings.calendars = [{ id: 'cal1', name: '通用纪年', offset: 0, unitYears: 1 }]
     settings.relationTypes = [
       { id: 'rt-old-1', name: '师徒', color: '#7d9cb5', directed: true },
       { id: 'rt-old-2', name: '同盟', color: '#8fae8b', directed: false },
     ]
     files['settings.json'] = strToU8(JSON.stringify(settings))
     const res = await repo.importZip(new Blob([zipSync(files)]), 'overwrite')
-    expect(res.meta.schemaVersion).toBe(2)
+    expect(res.meta.schemaVersion).toBe(3)
     expect(res.warnings.some((w) => w.includes('v1 迁移到 v2'))).toBe(true)
     const loaded = (await repo.loadProject(p.meta.id))!.data
     expect(loaded.settings.relationTypes.find((t) => t.name === '师徒')!.arrow).toBe('single')
@@ -226,7 +226,6 @@ describe('M1-F6 版本迁移', () => {
     await db.projects.put({ ...p.meta, schemaVersion: 1 })
     await db.settings.put({
       projectId: p.meta.id,
-      calendars: p.settings.calendars,
       relationTypes: [
         { id: 'rt-old-1', name: '宿敌', color: '#c2917f', directed: true },
       ] as never,
@@ -273,9 +272,9 @@ describe('M1-P1/P2 性能（fake-indexeddb 规模演练）', () => {
       createdAt: nowIso(), updatedAt: nowIso(),
     }))
     p.events = Array.from({ length: 1000 }, (_, i) => ({
-      id: `e-${i}`, worldlineId: 'w1', time: { calendarId: 'cal1', value: i, display: `年 ${i}` },
-      title: `事件${i}`, description: '描述'.repeat(50), participantIds: ['c-1'], locationId: null,
-      causalLinks: [], collapsed: false, locked: false,
+      id: `e-${i}`, worldlineId: 'w1', time: { mode: 'calendar', era: '通用纪年', year: String(i), month: '', day: '' },
+      title: `事件${i}`, description: '描述'.repeat(50), participantIds: ['c-1'], relatedCodexIds: [],
+      rank: i, manualPlaced: false, collapsed: false, locked: false,
     }))
     await repo.createProject('大项目', p)
     const t0 = performance.now()
@@ -295,7 +294,7 @@ describe('M1-D1 zip 纯函数（buildZip/parseZip 直测）', () => {
     const p = makeProject()
     const bytes = buildZip(p, [])
     const r = parseZip(bytes)
-    expect(r.fromVersion).toBe(2)
+    expect(r.fromVersion).toBe(3)
     expect(r.data.characters).toHaveLength(2)
     expect(r.warnings).toHaveLength(0)
   })

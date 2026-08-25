@@ -171,11 +171,9 @@ export function scanBrokenReferences(data: ProjectData): BrokenRef[] {
   const eventIds = new Set(data.events.map((e) => e.id))
   const worldlineIds = new Set(data.settings.worldlines.map((w) => w.id))
   const relationTypeIds = new Set(data.settings.relationTypes.map((t) => t.id))
-  const calendarIds = new Set(data.settings.calendars.map((c) => c.id))
 
   for (const e of data.events as TimelineEvent[]) {
     if (!worldlineIds.has(e.worldlineId)) out.push({ type: '事件', where: `事件「${e.title}」`, detail: '所属世界线不存在' })
-    if (e.time && !calendarIds.has(e.time.calendarId)) out.push({ type: '事件', where: `事件「${e.title}」`, detail: '历法不存在' })
     if (e.locationId && !codexIds.has(e.locationId)) out.push({ type: '事件', where: `事件「${e.title}」`, detail: '地点条目不存在' })
     for (const p of e.participantIds) if (!charIds.has(p)) out.push({ type: '事件', where: `事件「${e.title}」`, detail: `参与者 ${p} 不存在` })
     for (const l of e.causalLinks) if (!eventIds.has(l)) out.push({ type: '事件', where: `事件「${e.title}」`, detail: `因果目标 ${l} 不存在` })

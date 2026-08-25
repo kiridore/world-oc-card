@@ -73,7 +73,7 @@ export class LocalRepository implements Repository {
     }
     let data: ProjectData = {
       meta,
-      settings: settingsRow ? { calendars: settingsRow.calendars, relationTypes: settingsRow.relationTypes, codexTypes: settingsRow.codexTypes, worldlines: settingsRow.worldlines } : { calendars: [], relationTypes: [], codexTypes: [], worldlines: [] },
+      settings: settingsRow ? { relationTypes: settingsRow.relationTypes, codexTypes: settingsRow.codexTypes, worldlines: settingsRow.worldlines } : { relationTypes: [], codexTypes: [], worldlines: [] },
       relations: relationsRow?.relations ?? [],
       templates: templatesRow?.templates ?? [],
       characters: characters.map((c) => strip(c) as Character).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),

@@ -37,13 +37,6 @@ export interface RelationType { id: UUID; name: string; color: string; arrow: Re
 
 export interface Relation { id: UUID; from: UUID; to: UUID; typeId: UUID; description: string }
 
-export interface Calendar {
-  id: UUID
-  name: string
-  offset: number // 该历法 value=0 对应的绝对纪元数值
-  unitYears: number // 1 单位 = 多少年（月历法为 1/12）
-}
-
 export interface Worldline {
   id: UUID
   name: string
@@ -54,18 +47,20 @@ export interface Worldline {
   order: number
 }
 
-export interface EventTime { calendarId: UUID; value: number; display: string }
+export type EventTime =
+  | { mode: 'calendar'; era: string; year: string; month: string; day: string }
+  | { mode: 'custom'; text: string }
 
 export interface TimelineEvent {
   id: UUID
-  worldlineId: UUID
-  time: EventTime | null // null = 未定时草稿（仅画布）
+  worldlineId: UUID | null      // null = 草稿（未定时，不进任何世界线）
+  time: EventTime | null        // null = 未定时草稿
   title: string
   description: string
-  participantIds: UUID[]
-  locationId: UUID | null
-  causalLinks: UUID[]
-  canvasPos?: { x: number; y: number }
+  participantIds: UUID[]        // 角色 + 百科势力条目，合并一列
+  relatedCodexIds: UUID[]       // 通用百科关联（取代 locationId）
+  rank: number                  // 世界线内 0..n-1，顺序唯一真源
+  manualPlaced: boolean         // 此事件位置曾被人为拖拽放置
   collapsed: boolean
   locked: boolean
 }
@@ -101,7 +96,6 @@ export interface ProjectMeta {
 }
 
 export interface ProjectSettings {
-  calendars: Calendar[]
   relationTypes: RelationType[]
   codexTypes: CodexType[]
   worldlines: Worldline[]
@@ -119,4 +113,4 @@ export interface ProjectData {
 
 export interface AssetMeta { id: UUID; projectId: UUID; ext: string; name: string; mime: string; size: number }
 
-export const CURRENT_SCHEMA_VERSION = 2
+export const CURRENT_SCHEMA_VERSION = 3

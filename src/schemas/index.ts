@@ -77,6 +77,7 @@ export const relationSchema = z.strictObject({
   description: z.string(),
 })
 
+/** legacy：仅 v0–v2 输入/迁移管道使用 */
 export const calendarSchema = z.strictObject({
   id: uuid,
   name: z.string().min(1),
@@ -94,24 +95,35 @@ export const worldlineSchema = z.strictObject({
   order: z.number(),
 })
 
-export const eventTimeSchema = z.object({
-  calendarId: uuid,
-  value: z.number(),
-  display: z.string(),
-})
+export const eventTimeSchema = z.union([
+  z
+    .strictObject({ mode: z.literal('calendar'), era: z.string(), year: z.string(), month: z.string(), day: z.string() })
+    .refine((t) => [t.era, t.year, t.month, t.day].some((v) => v.trim() !== ''), '纪年法时间至少填写一个字段'),
+  z.strictObject({ mode: z.literal('custom'), text: z.string().min(1) }),
+])
 
 export const eventSchema = z.strictObject({
   id: uuid,
-  worldlineId: uuid,
+  worldlineId: uuid.nullable(),
   time: eventTimeSchema.nullable(),
   title: z.string().min(1),
   description: z.string(),
   participantIds: z.array(uuid),
-  locationId: uuid.nullable(),
-  causalLinks: z.array(uuid),
-  canvasPos: z.object({ x: z.number(), y: z.number() }).optional(),
+  relatedCodexIds: z.array(uuid),
+  rank: z.number().int().nonnegative(),
+  manualPlaced: z.boolean(),
   collapsed: z.boolean(),
   locked: z.boolean(),
+})
+
+/** v2 旧格式事件（calendarId+value+display / locationId / causalLinks / canvasPos）——迁移管道 v2→v3 与 zip 导入容错的输入 */
+export const legacyEventV2Schema = z.object({
+  id: uuid, worldlineId: uuid,
+  time: z.object({ calendarId: uuid, value: z.number(), display: z.string() }).nullable(),
+  title: z.string().min(1), description: z.string(),
+  participantIds: z.array(uuid), locationId: uuid.nullable(), causalLinks: z.array(uuid),
+  canvasPos: z.object({ x: z.number(), y: z.number() }).optional(),
+  collapsed: z.boolean(), locked: z.boolean(),
 })
 
 export const templateSchema = z.strictObject({
@@ -145,6 +157,13 @@ export const projectMetaSchema = z.strictObject({
 })
 
 export const settingsSchema = z.strictObject({
+  relationTypes: z.array(relationTypeSchema),
+  codexTypes: z.array(codexTypeSchema),
+  worldlines: z.array(worldlineSchema),
+})
+
+/** v2 旧格式 settings.json（含 calendars 字段，relationTypes 已为 arrow 三态）——zip 导入容错输入 */
+export const legacySettingsV2Schema = z.object({
   calendars: z.array(calendarSchema),
   relationTypes: z.array(relationTypeSchema),
   codexTypes: z.array(codexTypeSchema),

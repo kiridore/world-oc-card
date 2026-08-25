@@ -8,7 +8,6 @@ function makeData(charCount = 2, eventCount = 3): ProjectData {
   return {
     meta: { id: 'p1', name: '快照测试项目', schemaVersion: 1, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
     settings: {
-      calendars: [{ id: 'cal1', name: '通用纪年', offset: 0, unitYears: 1 }],
       relationTypes: [{ id: 'rt1', name: '亲属', color: '#7d9cb5', arrow: 'none' as const }],
       codexTypes: [{ id: 'ct1', key: 'location', name: '地点' }],
       worldlines: [
@@ -37,9 +36,9 @@ function makeData(charCount = 2, eventCount = 3): ProjectData {
       { id: 'x2', typeId: 'ct1', name: '苍之海', content: '毗邻 [[王城]] 与 [[不存在之地]]', attributes: [], color: '#7fb3ae' },
     ],
     events: Array.from({ length: eventCount }, (_, i) => ({
-      id: `e${i}`, worldlineId: 'w1', time: { calendarId: 'cal1', value: i * 10, display: `纪元 ${i * 10} 年` },
-      title: `事件${i}`, description: '', participantIds: i === 0 ? ['c0'] : [], locationId: null,
-      causalLinks: [], collapsed: false, locked: false,
+      id: `e${i}`, worldlineId: 'w1', time: { mode: 'calendar', era: '通用纪年', year: String(i * 10), month: '', day: '' },
+      title: `事件${i}`, description: '', participantIds: i === 0 ? ['c0'] : [], relatedCodexIds: [],
+      rank: i, manualPlaced: false, collapsed: false, locked: false,
     })),
   }
 }
@@ -85,7 +84,7 @@ describe('M6-F4 单文件 HTML 快照', () => {
     expect(html).toContain('王城')
     expect(html).toContain('苍之海')
     expect(html).toContain('事件0')
-    expect(html).toContain('纪元 0 年')
+    expect(html).toContain('通用纪年 0 年')
   })
 
   it('零外部请求（无 http src/href、无 link/script 外链）→ 断网 file:// 可用', () => {
@@ -111,7 +110,7 @@ describe('M6-F4 单文件 HTML 快照', () => {
 
   it('fork 继承事件进入时间线模型（dim 标记）', () => {
     const d = makeData()
-    d.events.push({ id: 'e9', worldlineId: 'w1', time: { calendarId: 'cal1', value: 999, display: '纪元 999 年' }, title: '主线后续', description: '', participantIds: [], locationId: null, causalLinks: [], collapsed: false, locked: false })
+    d.events.push({ id: 'e9', worldlineId: 'w1', time: { mode: 'calendar', era: '通用纪年', year: '999', month: '', day: '' }, title: '主线后续', description: '', participantIds: [], relatedCodexIds: [], rank: 3, manualPlaced: false, collapsed: false, locked: false })
     const model = buildSnapshotModel(d, [])
     const ifLane = model.lanes.find((l) => l.name === 'IF 线')!
     expect(ifLane.events.some((e) => e.title === '事件0' && e.dim)).toBe(true)   // ≤ fork 点继承
