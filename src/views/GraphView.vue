@@ -253,6 +253,30 @@ function graphData(): { nodes: { id: string; data: { name: string } }[]; edges: 
 let rendering = false
 let renderQueued = false
 
+// ---- 图谱节点位置持久化（视图偏好，localStorage 按项目隔离；不进 zip/数据）----
+interface SavedPos { x: number; y: number }
+function posKey(): string {
+  return `woc:graph-pos:${store.current?.meta.id ?? 'none'}`
+}
+function loadPositions(): Record<string, SavedPos> {
+  try {
+    const raw = localStorage.getItem(posKey())
+    const parsed = raw ? JSON.parse(raw) : {}
+    return typeof parsed === 'object' && parsed !== null ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+function savePositions(map: Record<string, SavedPos>): void {
+  try { localStorage.setItem(posKey(), JSON.stringify(map)) } catch { /* 容量/隐私模式忽略 */ }
+}
+function nodeXY(id: string): SavedPos | null {
+  // G6 v5：布局/平移后的节点位置在 style.x / style.y（非顶层 x/y）
+  const d = graph?.getNodeData(id) as unknown as { style?: { x?: number; y?: number } } | undefined
+  if (d && typeof d.style?.x === 'number' && typeof d.style?.y === 'number') return { x: d.style.x, y: d.style.y }
+  return null
+}
+
 /** 深层变更可能连续触发多次，串行化并在结束后补一次尾随渲染，避免销毁/重建竞态 */
 async function render(): Promise<void> {
   if (rendering) {
@@ -333,7 +357,41 @@ async function doRender(): Promise<void> {
   }) as never)
   // 点阵背景跟随视口：aftertransform 时用两点探测换算平移/缩放，同步 CSS 变量
   graph.on('aftertransform', (syncDotGrid as () => void))
+  // 节点位置持久化：afterlayout 后恢复已存位置；首次布局落盘（已有位置时不覆盖）
+  graph.on('afterlayout', (() => {
+    let handled = false
+    return () => {
+      if (handled || !graph) return
+      handled = true
+      const saved = loadPositions()
+      const ids = new Set(data.nodes.map((n) => n.id))
+      const toRestore = Object.entries(saved).filter(([id]) => ids.has(id))
+      if (toRestore.length > 0) {
+        void graph.translateElementTo(
+          Object.fromEntries(toRestore.map(([id, p]) => [id, [p.x, p.y] as [number, number]])),
+          false,
+        )
+        return
+      }
+      const map: Record<string, SavedPos> = {}
+      for (const d of graph.getNodeData()) {
+        const p = nodeXY(d.id)
+        if (p) map[d.id] = p
+      }
+      savePositions(map)
+    }
+  })())
+  // 拖拽结束 → 单节点增量保存
+  graph.on('node:dragend', ((e: { target: { id: string } }) => {
+    const p = nodeXY(e.target.id)
+    if (p) {
+      const map = loadPositions()
+      map[e.target.id] = p
+      savePositions(map)
+    }
+  }) as never)
   setGraphInstance(graph)
+  ;(window as unknown as { __wocGraph?: unknown }).__wocGraph = graph // E2E 接缝
   await graph.render()
   syncDotGrid()
 }

@@ -281,6 +281,43 @@ test('M5 页内新建关系：曲线边无需刷新立即渲染', async ({ page 
   expect(after.equals(before)).toBe(false)
 })
 
+test('M5-E2 图谱节点位置持久化：布局落盘、位移与重开恢复', async ({ page }) => {
+  await freshProject(page, '图谱位置验证')
+  // 建两个角色作为节点
+  for (let i = 0; i < 2; i++) {
+    await page.getByRole('button', { name: /新建角色/ }).first().click()
+    await page.getByText('跳过，直接创建空白角色').click()
+    await page.waitForTimeout(400)
+  }
+  await page.goto('/#/graph')
+  await page.waitForTimeout(1200)
+  // 首次布局后位置落盘（afterlayout）
+  const saved1 = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((k) => k.startsWith('woc:graph-pos:'))
+    return key ? JSON.parse(localStorage.getItem(key)!) : null
+  })
+  expect(saved1).not.toBeNull()
+  expect(Object.keys(saved1!).length).toBeGreaterThanOrEqual(2)
+  const nodeId = Object.keys(saved1!)[0]!
+  // 拖拽保存路径：以拖拽后的坐标写入（dragend 保存语义；此处直接模拟，跨浏览器成立，规避坑 9）
+  await page.evaluate(({ id, pos }) => {
+    const key = Object.keys(localStorage).find((k) => k.startsWith('woc:graph-pos:'))!
+    const m = JSON.parse(localStorage.getItem(key)!)
+    m[id] = pos
+    localStorage.setItem(key, JSON.stringify(m))
+  }, { id: nodeId, pos: { x: 400, y: 300 } })
+  // 重开页面：节点恢复到保存位置
+  await page.reload()
+  await page.waitForTimeout(1200)
+  const pos = await page.evaluate((id) => {
+    const g = (window as unknown as { __wocGraph?: { getNodeData: (id: string) => unknown } }).__wocGraph
+    const d = g!.getNodeData(id) as { style?: { x?: number; y?: number } }
+    return { x: d.style?.x, y: d.style?.y }
+  }, nodeId)
+  expect(Math.abs(pos.x! - 400)).toBeLessThanOrEqual(2)
+  expect(Math.abs(pos.y! - 300)).toBeLessThanOrEqual(2)
+})
+
 test('M5 点阵背景跟随视口平移/缩放', async ({ page }) => {
   await freshProject(page, '点阵验证')
   await page.goto('/#/graph')
