@@ -50,7 +50,10 @@
             @click="select(c.id)"
           >
             <span class="char-name">{{ c.name }}</span>
-            <span class="char-count">{{ c.fieldBlocks.length }} 块</span>
+            <span
+              class="char-count"
+              title="字段块数量（角色卡上的自定义内容块）"
+            >{{ c.fieldBlocks.length }} 个字段块</span>
           </div>
           <n-empty
             v-if="filtered.length === 0"
