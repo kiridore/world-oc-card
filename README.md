@@ -151,6 +151,8 @@ npx playwright test    # E2E 冒烟（先 npx playwright install chromium firefo
 - [DESIGN.md](./DESIGN.md) —— 设计文档（数据模型、视觉规范、架构、设计决策记录）
 - [DEV_PLAN.md](./DEV_PLAN.md) —— 开发计划与验收标准（含发布后迭代 AC 附录）
 - [docs/develop.md](./docs/develop.md) —— **开发指南**（代码导览、常见开发任务、测试与发布流程）
+- [docs/MAP.md](./docs/MAP.md) —— **工程文档地图**（逐文件职责、AC/测试索引、变更影响面）
+- [docs/KNOWLEDGE_BASE.md](./docs/KNOWLEDGE_BASE.md) —— **AI 开发知识库**（术语表、机制深度、坑清单、变更 SOP、FAQ）
 - [AGENTS.md](./AGENTS.md) —— agent/协作者指南（分层规则、硬性约束、已知坑）
 - [CHANGELOG.md](./CHANGELOG.md) —— 逐版本更新日志
 - [CREDITS.md](./CREDITS.md) —— 第三方素材与许可
