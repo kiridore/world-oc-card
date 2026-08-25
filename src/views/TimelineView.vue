@@ -469,10 +469,14 @@ function refreshConnectors(): void {
       ? `M ${x1} ${y1} C ${x1} ${(y1 + y2) / 2}, ${x2} ${(y1 + y2) / 2}, ${x2} ${y2}`
       : `M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`
     out.push({ id: `fork:${l.wl.id}`, d, color: lineColor(l.wl.color), kind: 'fork' })
-    // 分叉相对定位：偏移相对**本泳道 lane-cards 容器起点**（父泳道与 IF 泳道的
-    // lane-cards 同一起点）——若相对 lanes 原点算，IF 卡会整体偏移 .lanes 内边距的量
+    // 分叉相对定位：IF 线首事件是分叉点事件的**下一个**事件——
+    // 横：首卡左缘 = 锚点卡右缘 + 卡间距；纵：首卡上缘 = 锚点卡下缘 + 卡间距
+    // （基准为父泳道 lane-cards 容器起点，父线与 IF 线容器同一起点）
     if (branchEvents(l.wl.id).length > 0) {
-      offsets[l.wl.id] = hMode ? pr.left - pcr.left : pr.top - pcr.top
+      const gap = parseFloat(getComputedStyle(parentCardsEl).gap) || 16
+      offsets[l.wl.id] = hMode
+        ? pr.left - pcr.left + pr.width + gap
+        : pr.top - pcr.top + pr.height + gap
     }
   }
   // 背骨：同线相邻卡间隙段（各自边缘中点相连；拖拽中的卡排除防跳线）

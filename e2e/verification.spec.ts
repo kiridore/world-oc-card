@@ -91,12 +91,13 @@ test('M4 泳道背骨线 + 分叉相对定位 + 统一横滚', async ({ page }) 
       const r = node.getBoundingClientRect()
       return { left: r.left - lr.left + lanes.scrollLeft, top: r.top - lr.top + lanes.scrollTop, width: r.width, height: r.height }
     })
-  // 分叉对齐（横）：IF 首卡实际左缘 ≈ 锚点卡（217）实际左缘
+  // 分叉对齐（横）：IF 首卡是分叉点事件的**下一个**——左缘 = 锚点卡右缘 + 卡间距
   const anchor = page.locator('.lane').first().locator('.lane-cards .card').filter({ hasText: '217' }).first()
   const ifFirst = page.locator('.lane').nth(1).locator('.lane-cards .card').first()
+  const gap = await page.locator('.lane-cards').first().evaluate((el) => parseFloat(getComputedStyle(el).gap) || 16)
   await expect(anchor).toHaveCount(1)
   const before = { anchor: await contentBox(anchor), ifCard: await contentBox(ifFirst) }
-  expect(Math.abs(before.ifCard.left - before.anchor.left)).toBeLessThanOrEqual(2)
+  expect(Math.abs(before.ifCard.left - (before.anchor.left + before.anchor.width + gap))).toBeLessThanOrEqual(2)
   // fork 曲线端点 x2 与 IF 首卡中心一致（量测未陈旧）
   const forkX2 = await page.locator('.fork-overlay path.fork').evaluate(
     (p) => parseFloat(p.getAttribute('d')!.split(' ')[6]!),
@@ -113,16 +114,16 @@ test('M4 泳道背骨线 + 分叉相对定位 + 统一横滚', async ({ page }) 
   await page.waitForTimeout(600)
   const after = { anchor: await contentBox(anchor), ifCard: await contentBox(ifFirst) }
   expect(after.anchor.left).toBeGreaterThan(before.anchor.left + 100) // 锚点确实后移
-  expect(Math.abs(after.ifCard.left - after.anchor.left)).toBeLessThanOrEqual(2) // IF 卡跟随
+  expect(Math.abs(after.ifCard.left - (after.anchor.left + after.anchor.width + gap))).toBeLessThanOrEqual(2) // IF 卡跟随
   const forkX2b = await page.locator('.fork-overlay path.fork').evaluate(
     (p) => parseFloat(p.getAttribute('d')!.split(' ')[6]!),
   )
   expect(Math.abs(forkX2b - (after.ifCard.left + after.ifCard.width / 2))).toBeLessThanOrEqual(2) // 曲线刷新
-  // 纵向模式：IF 首卡上缘 ≈ 锚点卡上缘
+  // 纵向模式：IF 首卡上缘 = 锚点卡下缘 + 卡间距
   await page.getByRole('button', { name: /切换到纵向/ }).click()
   await page.waitForTimeout(400)
   const v = { anchor: await contentBox(anchor), ifCard: await contentBox(ifFirst) }
-  expect(Math.abs(v.ifCard.top - v.anchor.top)).toBeLessThanOrEqual(2)
+  expect(Math.abs(v.ifCard.top - (v.anchor.top + v.anchor.height + gap))).toBeLessThanOrEqual(2)
 })
 
 test('M4-E3 草稿箱：未定时进箱不进泳道；补时间入线；放回箱', async ({ page }) => {
