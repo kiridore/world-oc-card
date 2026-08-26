@@ -4,13 +4,13 @@ import type { AssetMeta, Character, FieldBlock, ProjectData } from '@/types'
 export interface MdExportResult { md: string; usedAssets: AssetMeta[] }
 
 export interface MdRenderOptions {
-  /** 图片引用路径（默认 assets/<id>.<ext>） */
-  assetUrl?: (a: AssetMeta) => string
+  /** 图片引用路径（默认 assets/<id>.<ext>）；返回 null 走失效引用占位（打印导出：无 blob URL 时） */
+  assetUrl?: (a: AssetMeta) => string | null
   /** 实体链接展示（默认纯名字；工作区导出传 [[名字]]） */
   linkText?: (name: string) => string
 }
 
-function blockToMd(b: FieldBlock, ctx: { assets: AssetMeta[]; resolveName: (b: FieldBlock) => string | null; assetUrl?: (a: AssetMeta) => string; linkText?: (name: string) => string }, depth: number, lines: string[], usedAssets: AssetMeta[]): void {
+function blockToMd(b: FieldBlock, ctx: { assets: AssetMeta[]; resolveName: (b: FieldBlock) => string | null; assetUrl?: (a: AssetMeta) => string | null; linkText?: (name: string) => string }, depth: number, lines: string[], usedAssets: AssetMeta[]): void {
   const h = (level: number, text: string) => `${'#'.repeat(Math.min(level, 6))} ${text}`
   switch (b.type) {
     case 'group':
@@ -34,9 +34,9 @@ function blockToMd(b: FieldBlock, ctx: { assets: AssetMeta[]; resolveName: (b: F
     case 'image': {
       lines.push('', h(depth, b.title || '图片'))
       const asset = ctx.assets.find((a) => a.id === b.assetId)
-      if (asset) {
+      const url = asset === undefined ? null : (ctx.assetUrl ? ctx.assetUrl(asset) : `assets/${asset.id}.${asset.ext}`)
+      if (asset && url !== null) {
         usedAssets.push(asset)
-        const url = ctx.assetUrl ? ctx.assetUrl(asset) : `assets/${asset.id}.${asset.ext}`
         lines.push('', `![${b.title || '图片'}](${url})`)
       } else {
         lines.push('', `> 图片（失效引用：${b.assetId}）`)

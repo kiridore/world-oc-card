@@ -67,6 +67,14 @@
             >
               导出 Markdown
             </n-button>
+            <n-button
+              size="small"
+              :disabled="!mdCharId"
+              :loading="busy.pdf"
+              @click="doPrintPdf"
+            >
+              打印 / PDF
+            </n-button>
           </div>
         </div>
         <p class="desc">
@@ -178,6 +186,7 @@ import { buildSnapshotHtml, type SnapshotAsset } from '@/utils/snapshot'
 import { getGraphInstance } from '@/utils/graphHolder'
 import { downloadBlob, downloadText } from '@/utils/download'
 import { buildWorkspaceZip } from '@/utils/workspace'
+import { collectPrintTokens, characterToPrintHtml, printHtml } from '@/utils/printExport'
 import { backupDue, loadStamp, saveStamp, loadThresholdDays, saveThresholdDays } from '@/utils/backup'
 import type { AssetMeta } from '@/types'
 
@@ -186,7 +195,7 @@ const showIntegrity = ref(false)
 const router = useRouter()
 const message = useMessage()
 
-const busy = reactive({ zip: false, md: false, snap: false, ws: false })
+const busy = reactive({ zip: false, md: false, snap: false, ws: false, pdf: false })
 const mdCharId = ref<string | null>(null)
 const wsFrontmatter = ref(true)
 // v2.4-F2：zip 备份提醒（阈值 localStorage 存，戳按项目存）
@@ -233,6 +242,25 @@ async function doExportMd(): Promise<void> {
     message.success('Markdown 已导出')
   } finally {
     busy.md = false
+  }
+}
+
+// v2.4-F3：当前主题色随打印内联；blob: URL 在同源 iframe srcdoc 中可解析，无 URL 资产走失效占位
+async function doPrintPdf(): Promise<void> {
+  const c = store.current?.characters.find((x) => x.id === mdCharId.value)
+  if (!c || !store.current) return
+  busy.pdf = true
+  try {
+    const urlMap = new Map<string, string>()
+    for (const m of store.assets) {
+      const u = await store.assetUrl(m.id)
+      if (u) urlMap.set(m.id, u)
+    }
+    printHtml(characterToPrintHtml(c, store.current, collectPrintTokens(), {
+      assetUrl: (a) => urlMap.get(a.id) ?? null,
+    }, store.assets))
+  } finally {
+    busy.pdf = false
   }
 }
 

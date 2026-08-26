@@ -93,6 +93,8 @@ describe('v2.4-F1 workspace 渲染选项', () => {
     const plain = characterToMarkdown(c0, d, assets).md
     expect(plain).toContain('![立绘](assets/a1.png)')
     expect(plain).toContain('- 认识：角色1')
+    // assetUrl 返回 null（打印导出无 blob URL）→ 走失效引用占位，不渲染空图
+    expect(characterToMarkdown(c0, d, assets, { assetUrl: () => null }).md).toContain('失效引用：a1')
   })
 })
 
