@@ -151,15 +151,15 @@
 
 ---
 
-## 附录 B：V1 发布后迭代验收记录（v1.2.0 → v2.3.3）
+## 附录 B：V1 发布后迭代验收记录（v1.2.0 → v3.4.0）
 
 > 复现命令同上。行为变更对应的设计依据见 DESIGN.md V1.4 §2/§5.7/附录 A4–A9；逐版本明细见 CHANGELOG.md。
 
 ### 总览
 
-| 证据源 | 结果（截至 v2.3.3） |
+| 证据源 | 结果（截至 v3.4.0） |
 |---|---|
-| 单元测试（Vitest） | **91/91 通过**（V1 发布时 74，增量来自箭头三态/迁移 v2/序位轴/惯性/缩放钳制等纯函数） |
+| 单元测试（Vitest） | **108/108 通过**（V1 发布 74 → v2.3.3 91 → v3.1 90 → v3.4.0 108；v2.4 新增 18 例：workspace 9 / backup 5 / printExport 3 / mdExport 渲染选项 1） |
 | E2E（Playwright，生产构建 ×3 浏览器） | **48/48 通过**（V1 发布时 33；新增聚簇展开/收起、惯性、缩放限制、箭头切换、点阵跟随、页内建关系曲线立即渲染、子路由刷新等） |
 | token 检查 / lint / build | 全部通过（0 error / 8 已知 warning） |
 
@@ -182,6 +182,11 @@
 | v2.3.3 | 修复聚簇「收起」按钮被拖拽 pointer capture 吞掉点击 | E2E `M4 同刻多事件` 补收起→回归→再展开断言，三浏览器 |
 | **v3.1.0** | **泳道连线增强**：同线节点背骨实线串联、分叉相对定位（IF 首卡对齐锚点卡横/纵起缘）、横向统一横滚（lane-cards 去独立 overflow） | 单测 **90/90**；E2E **48/48**（smoke 1 + verification 14 + perf 1 ×3 浏览器）；build/lint/tokens 全绿；泳道连线断言（背骨计数/fork 曲线/偏移 ±2px/滚动模型）三浏览器 |
 | **v3.0.0** | **时间线 v3 重构（破坏性 schemaVersion 2→3）**：字符串纪年双模式时间、世界线内软解析+手动排序（rank 真源）、泳道式卡片视图（横/纵 + 顶部草稿箱）、移除因果连线/画布视图/历法实体/序位轴交互；可选字段变更为参与者（含势力）与通用百科关联 | 单测 **90/90**；E2E **45/45**（smoke 1 + verification 13 + perf 1 ×3 浏览器）；覆盖率 lines 93%；build/lint/tokens 全绿；perf：open 374ms / 时间轴 1000 卡片 5 线 138ms |
+| **v3.2.0** | **v2.4-F1 Markdown 工作区导出**：每实体一个 .md（characters/codex/events 文件夹，文件名=实体名、重名 -2 去重），[[条目名]] 双链保留、assets 相对路径图片、可选 frontmatter（类型/颜色/历法时间）；zip 项目格式（§3.1）零改动（schemaVersion 仍 3） | 单测 workspace 9 例：文件名去重 / frontmatter 引号 / 逐实体断言 / 读回校验 / 孤儿资产排除 / frontmatter 开关；mdExport 渲染选项（assetUrl string\|null / linkText）默认行为不变（export.test.ts 既有 8 例回归） |
+| **v3.3.0** | **v2.4-F2 备份提醒**：距上次 zip 导出超 N 天（默认 7，1..365 可配，localStorage 持久化）→ 导出页 NAlert 横幅 + 侧栏 export 导航圆点（var(--accent)）；导出成功打戳即时消除；watch(current.meta.id, immediate) 消 #/export 硬刷新竞态；不做自动化快照 | 单测 backupDue 5 例边界：从未备份 / 恰 N 天整触发 / 少一秒不触发 / 阈值≤0 恒提醒 / 戳损坏宁误报；竞态修复经任务评审 fix round 验证 |
+| **v3.4.0** | **v2.4-F3 角色卡 PDF**：marked→HTML→隐藏 iframe 打印（collectPrintTokens 运行时读 CSS token 双主题内联；section 包裹 break-inside:avoid；@page A4）；角色卡卡片加「打印 / PDF」按钮 | 单测 printExport 3 例：全块标题无截断 / break-inside+@page / 双主题 token 内联 / blob 图片路径；打印对话框 / 双主题视觉 / 长卡分页为人工验收项（见下方注记） |
+
+> **v2.4 人工验证项**（浏览器行为无法自动化，留发布走查）：工作区 zip 实际下载与 Obsidian/Typora 打开；备份提醒改 localStorage 戳→横幅/圆点出现、导出 zip 后消除；角色卡打印对话框出现、双主题配色正确、长卡（>1 页）分页无截断。E2E 未新增（UI 为导出页卡片+侧栏圆点，纯函数已单测覆盖）。
 
 ### 迭代期缺陷修复记录（择要）
 
