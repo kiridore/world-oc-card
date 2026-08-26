@@ -24,7 +24,7 @@
           :bordered="false"
           style="margin-top: 10px"
         >
-          {{ stamp === null ? '本项目还没有导出过 zip 备份。' : `距上次 zip 备份已超过 ${thresholdDays} 天。` }}
+          {{ stamp === null ? '本项目还没有导出过 zip 备份。' : `距上次 zip 备份已超过 ${thresholdDays ?? 7} 天。` }}
           点击「导出 zip」完成备份后提醒自动消除。
         </n-alert>
         <div
