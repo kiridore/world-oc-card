@@ -1,7 +1,10 @@
 // v2.4-F1 Markdown 工作区导出：实体 → 可被 Obsidian/Typora/VS Code 打开的纯文本工作区。
 // 不触碰 zip.ts 的项目格式（§3.1）；本文件只做「导出」，导回仍走 zip。
-import type { CodexEntry, ProjectData, TimelineEvent } from '@/types'
+import type { Character, CodexEntry, ProjectData, TimelineEvent } from '@/types'
 import { displayTime } from '@/utils/branchOrder'
+import { characterToMarkdown, type MdRenderOptions } from '@/utils/mdExport'
+import type { ZipAsset } from '@/storage/zip'
+import { zipSync, strToU8 } from 'fflate'
 
 /** Windows/Obsidian 双非法字符统一替换；空名兜底「未命名」 */
 export function sanitizeFilename(name: string): string {
@@ -56,4 +59,36 @@ export function eventToMarkdown(ev: TimelineEvent, data: ProjectData, frontmatte
     rank: String(ev.rank),
   }) : ''
   return `${fm ? fm + '\n' : ''}${lines.join('\n')}\n`
+}
+
+export interface WorkspaceOptions { frontmatter: boolean }
+
+/** 整包工作区 zip：characters/codex/events 三文件夹 + 仅被引用的 assets；解压即纯文本工作区 */
+export function buildWorkspaceZip(data: ProjectData, assets: ZipAsset[], opts: WorkspaceOptions): Uint8Array {
+  const entries: Record<string, Uint8Array> = {}
+  const typeName = (typeId: string) => data.settings.codexTypes.find((t) => t.id === typeId)?.name ?? '未分类'
+
+  const charNames = dedupeNames(data.characters.map((c) => sanitizeFilename(c.name)))
+  const render: MdRenderOptions = {
+    assetUrl: (a) => `../assets/${a.id}.${a.ext}`,
+    linkText: (n) => `[[${n}]]`,
+  }
+  // ponytail: [[名字]] 按 Obsidian basename 解析；重名被去重为 名字-2 后，指向首个同名文件的链接会落到 -1 文件，重名角色罕见，接受
+  const usedAssetIds = new Set<string>()
+  data.characters.forEach((c: Character, i: number) => {
+    const fm = opts.frontmatter ? yamlFront({ type: 'character' }) : ''
+    // ZipAsset.meta 无 projectId；补齐内存对象供 usedAssets 匹配（不落库）
+    const { md, usedAssets } = characterToMarkdown(c, data, assets.map((a) => ({ ...a.meta, projectId: data.meta.id })), render)
+    for (const a of usedAssets) usedAssetIds.add(a.id)
+    entries[`characters/${charNames[i]}.md`] = strToU8(fm + md)
+  })
+
+  const codexNames = dedupeNames(data.codex.map((e) => sanitizeFilename(e.name)))
+  data.codex.forEach((e, i) => { entries[`codex/${codexNames[i]}.md`] = strToU8(codexToMarkdown(e, typeName(e.typeId), opts.frontmatter)) })
+
+  const evNames = dedupeNames(data.events.map((e) => sanitizeFilename(e.title)))
+  data.events.forEach((e, i) => { entries[`events/${evNames[i]}.md`] = strToU8(eventToMarkdown(e, data, opts.frontmatter)) })
+
+  for (const a of assets) if (usedAssetIds.has(a.meta.id)) entries[`assets/${a.meta.id}.${a.meta.ext}`] = a.bytes
+  return zipSync(entries, { level: 6 })
 }

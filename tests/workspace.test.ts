@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { sanitizeFilename, dedupeNames, yamlFront, codexToMarkdown, eventToMarkdown } from '../src/utils/workspace'
+import { sanitizeFilename, dedupeNames, yamlFront, codexToMarkdown, eventToMarkdown, buildWorkspaceZip } from '../src/utils/workspace'
+import { unzipSync, strFromU8 } from 'fflate'
 import type { ProjectData } from '../src/types'
 import { builtinTemplates } from '../src/data/builtinTemplates'
 
@@ -74,5 +75,55 @@ describe('v2.4-F1 事件 → md', () => {
     const draft = eventToMarkdown(d.events[1], d, true)
     expect(draft).toContain('worldline: 草稿')
     expect(draft).not.toContain('time:')
+  })
+})
+
+describe('v2.4-F1 buildWorkspaceZip 整包', () => {
+  const d = makeData()
+  d.characters[0].fieldBlocks = [
+    { type: 'image', title: '立绘', assetId: 'a1' },
+    { type: 'link', title: '认识', targetType: 'character', targetId: 'c1' },
+  ]
+  d.characters.push({ id: 'c1', name: '角色0', createdAt: '', updatedAt: '', fieldBlocks: [] }) // 重名角色
+  const assets = [{ meta: { id: 'a1', ext: 'png', name: '立绘.png', mime: 'image/png', size: 4 }, bytes: new Uint8Array([1, 2, 3, 4]) }]
+
+  function unzip(z: Uint8Array): Record<string, string> {
+    const files = unzipSync(z)
+    return Object.fromEntries(Object.entries(files).map(([p, u8]) => [p, strFromU8(u8)]))
+  }
+
+  it('逐实体断言：文件名去重 / 图片相对路径 / [[链接]] / frontmatter 时间字段', () => {
+    const files = unzip(buildWorkspaceZip(d, assets, { frontmatter: true }))
+    expect(Object.keys(files).sort()).toEqual([
+      'assets/a1.png', 'characters/角色0-2.md', 'characters/角色0.md', 'codex/王城.md', 'codex/苍之海.md', 'events/建国.md', 'events/草稿事件.md',
+    ].sort())
+    expect(files['characters/角色0.md']).toContain('![立绘](../assets/a1.png)')
+    expect(files['characters/角色0.md']).toContain('- 认识：[[角色0]]') // 链接文本=实体原名；重名文件去重后双链落首个同名文件（ponytail 取舍）
+    expect(files['events/建国.md']).toContain('time: 通用纪年 217 年 3 月')
+    expect(files['codex/王城.md']).toContain('参见 [[苍之海]]')
+  })
+
+  it('读回校验：每个实体的 md 标题与关键内容可逐项还原', () => {
+    const files = unzip(buildWorkspaceZip(d, assets, { frontmatter: true }))
+    // 角色：标题 + 名字可从文件名还原
+    const charFiles = Object.keys(files).filter((p) => p.startsWith('characters/'))
+    for (const p of charFiles) {
+      const c = d.characters.find((x) => p === `characters/${x.name}.md`) ?? d.characters.find((x) => p.startsWith(`characters/${x.name}`))
+      expect(c).toBeTruthy()
+      expect(files[p]).toContain(`# ${c!.name}`)
+    }
+    // 百科：标题 + 属性键值 + [[链接]] 全在
+    expect(files['codex/王城.md']).toContain('# 王城')
+    expect(files['codex/王城.md']).toContain('| 人口 | 3 万 |')
+    // 事件：标题 + 参与者 + 描述
+    expect(files['events/建国.md']).toContain('# 建国')
+    expect(files['events/建国.md']).toContain('[[角色0]]')
+    expect(files['events/建国.md']).toContain('描述正文')
+  })
+
+  it('frontmatter=false：无 --- 头；未引用资产不进包', () => {
+    const files = unzip(buildWorkspaceZip(d, [...assets, { meta: { id: 'a9', ext: 'png', name: '孤儿.png', mime: 'image/png', size: 1 }, bytes: new Uint8Array([9]) }], { frontmatter: false }))
+    expect(files['codex/王城.md'].startsWith('# 王城')).toBe(true)
+    expect(Object.keys(files)).not.toContain('assets/a9.png')
   })
 })
