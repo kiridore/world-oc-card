@@ -3,7 +3,14 @@ import type { AssetMeta, Character, FieldBlock, ProjectData } from '@/types'
 
 export interface MdExportResult { md: string; usedAssets: AssetMeta[] }
 
-function blockToMd(b: FieldBlock, ctx: { assets: AssetMeta[]; resolveName: (b: FieldBlock) => string | null }, depth: number, lines: string[], usedAssets: AssetMeta[]): void {
+export interface MdRenderOptions {
+  /** 图片引用路径（默认 assets/<id>.<ext>） */
+  assetUrl?: (a: AssetMeta) => string
+  /** 实体链接展示（默认纯名字；工作区导出传 [[名字]]） */
+  linkText?: (name: string) => string
+}
+
+function blockToMd(b: FieldBlock, ctx: { assets: AssetMeta[]; resolveName: (b: FieldBlock) => string | null; assetUrl?: (a: AssetMeta) => string; linkText?: (name: string) => string }, depth: number, lines: string[], usedAssets: AssetMeta[]): void {
   const h = (level: number, text: string) => `${'#'.repeat(Math.min(level, 6))} ${text}`
   switch (b.type) {
     case 'group':
@@ -29,7 +36,8 @@ function blockToMd(b: FieldBlock, ctx: { assets: AssetMeta[]; resolveName: (b: F
       const asset = ctx.assets.find((a) => a.id === b.assetId)
       if (asset) {
         usedAssets.push(asset)
-        lines.push('', `![${b.title || '图片'}](assets/${asset.id}.${asset.ext})`)
+        const url = ctx.assetUrl ? ctx.assetUrl(asset) : `assets/${asset.id}.${asset.ext}`
+        lines.push('', `![${b.title || '图片'}](${url})`)
       } else {
         lines.push('', `> 图片（失效引用：${b.assetId}）`)
       }
@@ -43,13 +51,13 @@ function blockToMd(b: FieldBlock, ctx: { assets: AssetMeta[]; resolveName: (b: F
       break
     case 'link': {
       const name = ctx.resolveName(b)
-      lines.push('', `- ${b.title}：${name ?? '失效引用'}`)
+      lines.push('', `- ${b.title}：${name === null ? '失效引用' : (ctx.linkText ? ctx.linkText(name) : name)}`)
       break
     }
   }
 }
 
-export function characterToMarkdown(c: Character, data: ProjectData, assets: AssetMeta[]): MdExportResult {
+export function characterToMarkdown(c: Character, data: ProjectData, assets: AssetMeta[], opts: MdRenderOptions = {}): MdExportResult {
   const lines: string[] = [`# ${c.name}`]
   const usedAssets: AssetMeta[] = []
   const resolveName = (b: FieldBlock): string | null => {
@@ -58,7 +66,7 @@ export function characterToMarkdown(c: Character, data: ProjectData, assets: Ass
     if (b.targetType === 'codexEntry') return data.codex.find((x) => x.id === b.targetId)?.name ?? null
     return data.events.find((x) => x.id === b.targetId)?.title ?? null
   }
-  for (const b of c.fieldBlocks) blockToMd(b, { assets, resolveName }, 2, lines, usedAssets)
+  for (const b of c.fieldBlocks) blockToMd(b, { assets, resolveName, assetUrl: opts.assetUrl, linkText: opts.linkText }, 2, lines, usedAssets)
   return { md: lines.join('\n') + '\n', usedAssets }
 }
 

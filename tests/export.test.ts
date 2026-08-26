@@ -76,6 +76,26 @@ describe('M6-F2 角色 Markdown 导出', () => {
   })
 })
 
+describe('v2.4-F1 workspace 渲染选项', () => {
+  it('assetUrl/linkText 选项：图片相对路径 + [[双链]]；不传选项时行为不变', () => {
+    const d = makeData()
+    const c0 = d.characters[0]
+    c0.fieldBlocks.push({ type: 'link', title: '认识', targetType: 'character', targetId: 'c1' })
+    const styled = characterToMarkdown(c0, d, assets, {
+      assetUrl: (a) => `../assets/${a.id}.${a.ext}`,
+      linkText: (n) => `[[${n}]]`,
+    }).md
+    expect(styled).toContain('![立绘](../assets/a1.png)')
+    expect(styled).toContain('- 认识：[[角色1]]')
+    // 失效引用不走 linkText，仍是纯文本
+    expect(styled).toContain('- 挚友：失效引用')
+
+    const plain = characterToMarkdown(c0, d, assets).md
+    expect(plain).toContain('![立绘](assets/a1.png)')
+    expect(plain).toContain('- 认识：角色1')
+  })
+})
+
 describe('M6-F4 单文件 HTML 快照', () => {
   it('内联数据完整：角色/百科/时间线三模块数据均在', () => {
     const html = buildSnapshotHtml(makeData(), [{ meta: assets[0], dataUrl: 'data:image/png;base64,xxx' }])
