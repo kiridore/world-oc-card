@@ -49,6 +49,31 @@
 
       <section class="panel card">
         <div class="card-head">
+          <h3><FolderOutput :size="16" /> Markdown 工作区导出</h3>
+          <div class="ops">
+            <n-checkbox
+              v-model:checked="wsFrontmatter"
+              size="small"
+            >
+              frontmatter 元数据
+            </n-checkbox>
+            <n-button
+              size="small"
+              type="primary"
+              :loading="busy.ws"
+              @click="doExportWorkspace"
+            >
+              导出工作区 zip
+            </n-button>
+          </div>
+        </div>
+        <p class="desc">
+          每个角色 / 百科 / 事件一个 .md 文件（characters / codex / events 三文件夹），保留 [[条目名]] 双链与 assets 相对路径图片引用；解压后可直接用 Obsidian / Typora / VS Code 打开编辑。frontmatter 含类型 / 颜色 / 历法时间。
+        </p>
+      </section>
+
+      <section class="panel card">
+        <div class="card-head">
           <h3><Share2 :size="16" /> 分享快照（单文件 HTML）</h3>
           <n-button
             size="small"
@@ -116,8 +141,8 @@
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { NButton, NSelect, useMessage } from 'naive-ui'
-import { Archive, FileText, Share2, ImageDown, ShieldCheck } from 'lucide-vue-next'
+import { NButton, NSelect, NCheckbox, useMessage } from 'naive-ui'
+import { Archive, FileText, Share2, ImageDown, ShieldCheck, FolderOutput } from 'lucide-vue-next'
 import EmptyProject from '@/components/EmptyProject.vue'
 import IntegrityDrawer from '@/components/IntegrityDrawer.vue'
 import { useProjectStore } from '@/stores/project'
@@ -125,14 +150,17 @@ import { projectToMarkdown, characterToMarkdown } from '@/utils/mdExport'
 import { buildSnapshotHtml, type SnapshotAsset } from '@/utils/snapshot'
 import { getGraphInstance } from '@/utils/graphHolder'
 import { downloadBlob, downloadText } from '@/utils/download'
+import { buildWorkspaceZip } from '@/utils/workspace'
+import type { AssetMeta } from '@/types'
 
 const store = useProjectStore()
 const showIntegrity = ref(false)
 const router = useRouter()
 const message = useMessage()
 
-const busy = reactive({ zip: false, md: false, snap: false })
+const busy = reactive({ zip: false, md: false, snap: false, ws: false })
 const mdCharId = ref<string | null>(null)
+const wsFrontmatter = ref(true)
 const graphReady = ref(false)
 let poller: ReturnType<typeof setInterval> | null = null
 
@@ -171,6 +199,25 @@ async function doExportMd(): Promise<void> {
   } finally {
     busy.md = false
   }
+}
+
+async function doExportWorkspace(): Promise<void> {
+  if (!store.current) return
+  busy.ws = true
+  try {
+    const zs: { meta: AssetMeta; bytes: Uint8Array }[] = []
+    for (const m of store.assets) {
+      const url = await store.assetUrl(m.id)
+      if (!url) continue
+      const blob = await (await fetch(url)).blob()
+      zs.push({ meta: m, bytes: new Uint8Array(await blob.arrayBuffer()) })
+    }
+    const zip = buildWorkspaceZip(store.current, zs, { frontmatter: wsFrontmatter.value })
+    downloadBlob(new Blob([zip as BlobPart], { type: 'application/zip' }), `${store.current.meta.name}-工作区.zip`)
+    message.success('Markdown 工作区已导出')
+  } catch (e) {
+    message.error(`导出失败：${e instanceof Error ? e.message : e}`)
+  } finally { busy.ws = false }
 }
 
 async function loadSnapshotAssets(): Promise<SnapshotAsset[]> {
