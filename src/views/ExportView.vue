@@ -18,6 +18,33 @@
         <p class="desc">
           包含角色 / 百科 / 事件 / 世界线 / 模板 / 图片全部数据，目录结构与设计文档 §3.1 一致；可在任意设备重新导入。
         </p>
+        <n-alert
+          v-if="due"
+          type="warning"
+          :bordered="false"
+          style="margin-top: 10px"
+        >
+          {{ stamp === null ? '本项目还没有导出过 zip 备份。' : `距上次 zip 备份已超过 ${thresholdDays} 天。` }}
+          点击「导出 zip」完成备份后提醒自动消除。
+        </n-alert>
+        <div
+          v-if="due"
+          class="ops"
+          style="margin-top: 8px"
+        >
+          <span
+            class="desc"
+            style="margin: 0"
+          >提醒阈值（天）：</span>
+          <n-input-number
+            v-model:value="thresholdDays"
+            size="small"
+            :min="1"
+            :max="365"
+            style="width: 120px"
+            @update:value="(v: number | null) => v && saveThresholdDays(v)"
+          />
+        </div>
       </section>
 
       <section class="panel card">
@@ -141,7 +168,7 @@
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { NButton, NSelect, NCheckbox, useMessage } from 'naive-ui'
+import { NButton, NSelect, NCheckbox, NAlert, NInputNumber, useMessage } from 'naive-ui'
 import { Archive, FileText, Share2, ImageDown, ShieldCheck, FolderOutput } from 'lucide-vue-next'
 import EmptyProject from '@/components/EmptyProject.vue'
 import IntegrityDrawer from '@/components/IntegrityDrawer.vue'
@@ -151,6 +178,7 @@ import { buildSnapshotHtml, type SnapshotAsset } from '@/utils/snapshot'
 import { getGraphInstance } from '@/utils/graphHolder'
 import { downloadBlob, downloadText } from '@/utils/download'
 import { buildWorkspaceZip } from '@/utils/workspace'
+import { backupDue, loadStamp, saveStamp, loadThresholdDays, saveThresholdDays } from '@/utils/backup'
 import type { AssetMeta } from '@/types'
 
 const store = useProjectStore()
@@ -161,6 +189,10 @@ const message = useMessage()
 const busy = reactive({ zip: false, md: false, snap: false, ws: false })
 const mdCharId = ref<string | null>(null)
 const wsFrontmatter = ref(true)
+// v2.4-F2：zip 备份提醒（阈值 localStorage 存，戳按项目存）
+const thresholdDays = ref(loadThresholdDays())
+const stamp = ref<string | null>(store.current ? loadStamp(store.current.meta.id) : null)
+const due = computed(() => stamp.value === null || backupDue(stamp.value, new Date().toISOString(), thresholdDays.value))
 const graphReady = ref(false)
 let poller: ReturnType<typeof setInterval> | null = null
 
@@ -176,6 +208,7 @@ async function doExportZip(): Promise<void> {
   try {
     const blob = await store.exportZip()
     downloadBlob(blob, `${store.current?.meta.name ?? '项目'}.zip`)
+    if (store.current) { saveStamp(store.current.meta.id); stamp.value = new Date().toISOString() }
     message.success('zip 备份已导出')
   } catch (e) {
     message.error(`导出失败：${e instanceof Error ? e.message : e}`)

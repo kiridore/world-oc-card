@@ -28,6 +28,11 @@
                   :stroke-width="2"
                 />
                 <span>{{ r.meta?.title }}</span>
+                <span
+                  v-if="r.name === 'export' && backupDueNow"
+                  class="nav-dot"
+                  title="距上次 zip 备份已超阈值，去导出"
+                />
               </RouterLink>
             </nav>
             <div class="side-foot">
@@ -76,7 +81,8 @@ import { darkTheme, zhCN, dateZhCN, NModal, NConfigProvider, NDialogProvider, NM
 import { Keyboard } from 'lucide-vue-next'
 import * as icons from 'lucide-vue-next'
 import { useThemeStore } from '@/stores/theme'
-import { reopenLastProject } from '@/stores/project'
+import { useProjectStore, reopenLastProject } from '@/stores/project'
+import { backupDue, loadStamp, loadThresholdDays } from '@/utils/backup'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import MarbleBackground from '@/components/MarbleBackground.vue'
 import { useShortcuts, SHORTCUT_HELP } from '@/composables/useShortcuts'
@@ -91,6 +97,13 @@ useShortcuts(() => { showHelp.value = true })
 // G4：启动时自动重开上次项目，刷新后各页面直接可用
 onMounted(() => { void reopenLastProject() })
 const router = useRouter()
+// v2.4-F2：侧栏备份提醒圆点（localStorage 非响应式源，随项目切换/页面刷新重算，不做轮询）
+const projectStore = useProjectStore()
+const backupDueNow = computed(() => {
+  const id = projectStore.current?.meta.id
+  if (!id) return false
+  return backupDue(loadStamp(id), new Date().toISOString(), loadThresholdDays())
+})
 const navRoutes = router.getRoutes()
   .filter((r) => r.meta?.title && r.path !== '/')
   .sort((a, b) => (a.meta?.order ?? 99) - (b.meta?.order ?? 99))
@@ -129,6 +142,7 @@ nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 }
 .nav-item:hover { background: var(--surface-2); color: var(--text-1); }
 .nav-item.active { background: var(--accent-weak); color: var(--accent-text); }
+.nav-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-left: auto; align-self: center; }
 .side-foot { padding: 8px 10px; display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
 .ver { font-size: 11px; color: var(--text-3); margin-right: auto; }
 .foot-btn {
