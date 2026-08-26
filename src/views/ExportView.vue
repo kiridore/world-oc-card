@@ -166,7 +166,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, computed, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { NButton, NSelect, NCheckbox, NAlert, NInputNumber, useMessage } from 'naive-ui'
 import { Archive, FileText, Share2, ImageDown, ShieldCheck, FolderOutput } from 'lucide-vue-next'
@@ -191,7 +191,9 @@ const mdCharId = ref<string | null>(null)
 const wsFrontmatter = ref(true)
 // v2.4-F2：zip 备份提醒（阈值 localStorage 存，戳按项目存）
 const thresholdDays = ref(loadThresholdDays())
-const stamp = ref<string | null>(store.current ? loadStamp(store.current.meta.id) : null)
+// v2.4-F2：硬刷新停在 #/export 时 reopenLastProject 异步晚于本组件 setup，须 watch 项目 id 变化重读戳
+const stamp = ref<string | null>(null)
+watch(() => store.current?.meta.id, (id) => { stamp.value = id ? loadStamp(id) : null }, { immediate: true })
 const due = computed(() => stamp.value === null || backupDue(stamp.value, new Date().toISOString(), thresholdDays.value))
 const graphReady = ref(false)
 let poller: ReturnType<typeof setInterval> | null = null
